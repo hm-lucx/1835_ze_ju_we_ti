@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1835 Game Form</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --line: #d8dbe7;
+      --text: #1f2533;
+      --muted: #4f5a78;
+      --primary: #3346c4;
+      --danger: #b91c1c;
+      --success: #166534;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    h1, h2 { margin: 0 0 12px; }
+
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.2rem; }
+
+    .sub {
+      color: var(--muted);
+      margin: 0 0 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+
+    th { color: var(--muted); font-weight: 600; }
+
+    .status {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      min-height: 1.2rem;
+    }
+
+    .status.ok { color: var(--success); }
+    .status.error { color: var(--danger); }
+
+    .result {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 720px) {
+      th:nth-child(4), td:nth-child(4) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>1835 Game Form</h1>
+      <p class="sub">Track a full 1835 game from setup to final scoring.</p>
+      <div class="grid">
+        <div>
+          <label for="gameName">Game Name</label>
+          <input id="gameName" type="text" placeholder="e.g. Friday Night 1835" />
+        </div>
+        <div>
+          <label for="gameDate">Date</label>
+          <input id="gameDate" type="date" />
+        </div>
+        <div>
+          <label for="bankValue">Bank Value (Marks)</label>
+          <input id="bankValue" type="number" min="1" step="1" value="12000" />
+        </div>
+        <div>
+          <label for="phase">Current Phase</label>
+          <select id="phase">
+            <option value="2">Phase 2</option>
+            <option value="3">Phase 3</option>
+            <option value="4">Phase 4</option>
+            <option value="5">Phase 5</option>
+            <option value="6">Phase 6</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <label for="notes">Game Notes</label>
+        <textarea id="notes" placeholder="Optional notes"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Players</h2>
+      <p class="muted">Add all players and their final portfolio values.</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%;">Name</th>
+            <th style="width: 18%;">Color</th>
+            <th style="width: 18%;">Cash</th>
+            <th style="width: 18%;">Share Value</th>
+            <th style="width: 18%;">Private Companies</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="playersBody"></tbody>
+      </table>
+      <div class="row-actions">
+        <button id="addPlayer" type="button">Add Player</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Corporations</h2>
+      <p class="muted">Track corporations and their final market values.</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%;">Corporation</th>
+            <th style="width: 18%;">Started</th>
+            <th style="width: 18%;">Par Price</th>
+            <th style="width: 18%;">Final Share Price</th>
+            <th style="width: 18%;">Trains Owned</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="corporationsBody"></tbody>
+      </table>
+      <div class="row-actions">
+        <button id="addCorporation" type="button">Add Corporation</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Round Log</h2>
+      <p class="muted">Optional operating/stock round notes during play.</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 18%;">Round #</th>
+            <th style="width: 20%;">Type</th>
+            <th>Summary</th>
+            <th style="width: 12%;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="roundsBody"></tbody>
+      </table>
+      <div class="row-actions">
+        <button id="addRound" type="button">Add Round Entry</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Finalize Game</h2>
+      <div class="row-actions">
+        <button id="calculate" class="primary" type="button">Calculate Winner</button>
+        <button id="save" type="button">Save</button>
+        <button id="export" type="button">Export JSON</button>
+        <label style="display:inline-block; margin:0;">
+          <input id="importFile" type="file" accept="application/json" style="display:none;" />
+          <button id="import" type="button">Import JSON</button>
+        </label>
+        <button id="reset" class="danger" type="button">Reset Form</button>
+      </div>
+      <div id="result" class="result"></div>
+      <div id="status" class="status"></div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'game1835FormState';
+
+    const playersBody = document.getElementById('playersBody');
+    const corporationsBody = document.getElementById('corporationsBody');
+    const roundsBody = document.getElementById('roundsBody');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+
+    function setStatus(message, type = '') {
+      status.className = `status ${type}`.trim();
+      status.textContent = message;
+    }
+
+    function numberInput(value = 0, min = 0) {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = String(min);
+      input.step = '1';
+      input.value = String(value);
+      return input;
+    }
+
+    function textInput(value = '', placeholder = '') {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = value;
+      input.placeholder = placeholder;
+      return input;
+    }
+
+    function checkboxInput(checked = false) {
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = checked;
+      return input;
+    }
+
+    function removeButton(onClick) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Remove';
+      btn.className = 'danger';
+      btn.addEventListener('click', onClick);
+      return btn;
+    }
+
+    function appendCell(row, element) {
+      const td = document.createElement('td');
+      td.appendChild(element);
+      row.appendChild(td);
+    }
+
+    function addPlayerRow(data = {}) {
+      const row = document.createElement('tr');
+      const name = textInput(data.name || '', 'Player name');
+      const color = textInput(data.color || '', 'Color/seat');
+      const cash = numberInput(data.cash ?? 0, 0);
+      const shares = numberInput(data.shares ?? 0, 0);
+      const privates = numberInput(data.privates ?? 0, 0);
+      const remove = removeButton(() => row.remove());
+
+      appendCell(row, name);
+      appendCell(row, color);
+      appendCell(row, cash);
+      appendCell(row, shares);
+      appendCell(row, privates);
+      appendCell(row, remove);
+
+      playersBody.appendChild(row);
+    }
+
+    function addCorporationRow(data = {}) {
+      const row = document.createElement('tr');
+      const name = textInput(data.name || '', 'Corporation name');
+      const started = checkboxInput(Boolean(data.started));
+      const par = numberInput(data.par ?? 0, 0);
+      const finalPrice = numberInput(data.finalPrice ?? 0, 0);
+      const trains = numberInput(data.trains ?? 0, 0);
+      const remove = removeButton(() => row.remove());
+
+      appendCell(row, name);
+      appendCell(row, started);
+      appendCell(row, par);
+      appendCell(row, finalPrice);
+      appendCell(row, trains);
+      appendCell(row, remove);
+
+      corporationsBody.appendChild(row);
+    }
+
+    function addRoundRow(data = {}) {
+      const row = document.createElement('tr');
+      const round = numberInput(data.round ?? 1, 1);
+      const type = document.createElement('select');
+      ['Stock Round', 'Operating Round', 'Merger/Restructure', 'Other'].forEach((t) => {
+        const option = document.createElement('option');
+        option.value = t;
+        option.textContent = t;
+        if ((data.type || 'Stock Round') === t) {
+          option.selected = true;
+        }
+        type.appendChild(option);
+      });
+      const summary = textInput(data.summary || '', 'Key actions/results');
+      const remove = removeButton(() => row.remove());
+
+      appendCell(row, round);
+      appendCell(row, type);
+      appendCell(row, summary);
+      appendCell(row, remove);
+
+      roundsBody.appendChild(row);
+    }
+
+    function rowValues(tbody, mapper) {
+      return Array.from(tbody.querySelectorAll('tr')).map(mapper);
+    }
+
+    function collectState() {
+      return {
+        gameName: document.getElementById('gameName').value.trim(),
+        gameDate: document.getElementById('gameDate').value,
+        bankValue: Number(document.getElementById('bankValue').value || 0),
+        phase: document.getElementById('phase').value,
+        notes: document.getElementById('notes').value,
+        players: rowValues(playersBody, (row) => ({
+          name: row.cells[0].querySelector('input').value.trim(),
+          color: row.cells[1].querySelector('input').value.trim(),
+          cash: Number(row.cells[2].querySelector('input').value || 0),
+          shares: Number(row.cells[3].querySelector('input').value || 0),
+          privates: Number(row.cells[4].querySelector('input').value || 0)
+        })),
+        corporations: rowValues(corporationsBody, (row) => ({
+          name: row.cells[0].querySelector('input').value.trim(),
+          started: row.cells[1].querySelector('input').checked,
+          par: Number(row.cells[2].querySelector('input').value || 0),
+          finalPrice: Number(row.cells[3].querySelector('input').value || 0),
+          trains: Number(row.cells[4].querySelector('input').value || 0)
+        })),
+        rounds: rowValues(roundsBody, (row) => ({
+          round: Number(row.cells[0].querySelector('input').value || 1),
+          type: row.cells[1].querySelector('select').value,
+          summary: row.cells[2].querySelector('input').value.trim()
+        }))
+      };
+    }
+
+    function validateState(state) {
+      if (!state.gameName) {
+        return 'Game name is required.';
+      }
+      if (state.players.length < 2) {
+        return 'At least 2 players are required.';
+      }
+      const names = state.players.map((p) => p.name.toLowerCase()).filter(Boolean);
+      if (names.length !== state.players.length) {
+        return 'Every player must have a name.';
+      }
+      if (new Set(names).size !== names.length) {
+        return 'Player names must be unique.';
+      }
+      const invalidMoney = state.players.find((p) => p.cash < 0 || p.shares < 0 || p.privates < 0);
+      if (invalidMoney) {
+        return 'Player values cannot be negative.';
+      }
+      const invalidCorp = state.corporations.find((c) => !c.name || c.par < 0 || c.finalPrice < 0 || c.trains < 0);
+      if (invalidCorp) {
+        return 'Each corporation must have a name and non-negative values.';
+      }
+      return '';
+    }
+
+    function loadState(state) {
+      document.getElementById('gameName').value = state.gameName || '';
+      document.getElementById('gameDate').value = state.gameDate || '';
+      document.getElementById('bankValue').value = String(state.bankValue ?? 12000);
+      document.getElementById('phase').value = state.phase || '2';
+      document.getElementById('notes').value = state.notes || '';
+
+      playersBody.innerHTML = '';
+      corporationsBody.innerHTML = '';
+      roundsBody.innerHTML = '';
+
+      (state.players || []).forEach(addPlayerRow);
+      (state.corporations || []).forEach(addCorporationRow);
+      (state.rounds || []).forEach(addRoundRow);
+
+      if (!playersBody.children.length) {
+        addPlayerRow();
+        addPlayerRow();
+      }
+      if (!corporationsBody.children.length) {
+        addCorporationRow({ name: 'BME', started: true, par: 67, finalPrice: 67, trains: 1 });
+      }
+    }
+
+    function calculateWinner() {
+      const state = collectState();
+      const validationError = validateState(state);
+      if (validationError) {
+        result.textContent = '';
+        setStatus(validationError, 'error');
+        return;
+      }
+
+      const playersWithTotals = state.players.map((player) => {
+        const total = player.cash + player.shares + player.privates;
+        return { ...player, total };
+      });
+
+      playersWithTotals.sort((a, b) => b.total - a.total);
+      const top = playersWithTotals[0];
+
+      result.textContent = `Winner: ${top.name} with ${top.total.toLocaleString()} Marks.`;
+      setStatus('Calculation complete.', 'ok');
+    }
+
+    function saveState() {
+      const state = collectState();
+      const validationError = validateState(state);
+      if (validationError) {
+        setStatus(validationError, 'error');
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setStatus('Saved successfully.', 'ok');
+    }
+
+    function exportState() {
+      const state = collectState();
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = (state.gameName || '1835-game').replace(/[^a-z0-9_-]/gi, '-').slice(0, 60);
+      a.href = url;
+      a.download = `${safeName || '1835-game'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus('Exported JSON.', 'ok');
+    }
+
+    function resetForm() {
+      localStorage.removeItem(STORAGE_KEY);
+      loadState({
+        gameName: '',
+        gameDate: '',
+        bankValue: 12000,
+        phase: '2',
+        notes: '',
+        players: [{}, {}],
+        corporations: [{ name: 'BME', started: true, par: 67, finalPrice: 67, trains: 1 }],
+        rounds: []
+      });
+      result.textContent = '';
+      setStatus('Form reset.', 'ok');
+    }
+
+    document.getElementById('addPlayer').addEventListener('click', () => addPlayerRow());
+    document.getElementById('addCorporation').addEventListener('click', () => addCorporationRow());
+    document.getElementById('addRound').addEventListener('click', () => addRoundRow());
+    document.getElementById('calculate').addEventListener('click', calculateWinner);
+    document.getElementById('save').addEventListener('click', saveState);
+    document.getElementById('export').addEventListener('click', exportState);
+    document.getElementById('reset').addEventListener('click', resetForm);
+
+    document.getElementById('import').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        return;
+      }
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const validationError = validateState({
+          gameName: parsed.gameName || '',
+          gameDate: parsed.gameDate || '',
+          bankValue: Number(parsed.bankValue || 0),
+          phase: parsed.phase || '2',
+          notes: parsed.notes || '',
+          players: Array.isArray(parsed.players) ? parsed.players : [],
+          corporations: Array.isArray(parsed.corporations) ? parsed.corporations : [],
+          rounds: Array.isArray(parsed.rounds) ? parsed.rounds : []
+        });
+        if (validationError) {
+          throw new Error(validationError);
+        }
+        loadState(parsed);
+        setStatus('Import successful.', 'ok');
+      } catch (error) {
+        setStatus(`Import failed: ${error.message}`, 'error');
+      } finally {
+        event.target.value = '';
+      }
+    });
+
+    (() => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          loadState(parsed);
+          setStatus('Loaded saved game.', 'ok');
+          return;
+        } catch (error) {
+          setStatus('Saved data was invalid and has been ignored.', 'error');
+        }
+      }
+      resetForm();
+    })();
+  </script>
+</body>
+</html>
