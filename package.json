@@ -10,8 +10,7 @@
     "db:stop": "docker rm -f 1835-postgres",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "db:studio": "prisma studio"
   },
   "repository": {
     "type": "git",
