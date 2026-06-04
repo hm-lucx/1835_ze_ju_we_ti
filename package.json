@@ -1,0 +1,31 @@
+{
+  "name": "1835_ze_ju_we_ti",
+  "version": "1.0.0",
+  "description": "> Ein webbasiertes Begleitsystem für das Brettspiel **1835** – verwaltet Aktien, Spielstände, Züge und Gesellschaften direkt am Tisch, optimiert für Tablets.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hm-lucx/1835_ze_ju_we_ti.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hm-lucx/1835_ze_ju_we_ti/issues"
+  },
+  "homepage": "https://github.com/hm-lucx/1835_ze_ju_we_ti#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2"
+  }
+}
