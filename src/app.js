@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { AuthError, register, login, requireAuth } = require('./authService');
+const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
 const { GameError, createGame, getGame, joinGame } = require('./gameService');
 
 function createApp(options = {}) {
@@ -20,6 +20,16 @@ function createApp(options = {}) {
     : rateLimit({
     windowMs: 60 * 1000,
     max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
+  });
+
+  const forgotPasswordRateLimiter = options.disableRateLimiting
+    ? (req, res, next) => next()
+    : rateLimit({
+    windowMs: 60 * 1000,
+    max: 3,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
@@ -46,6 +56,24 @@ function createApp(options = {}) {
         message: 'Anmeldung erfolgreich.',
         ...result
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/auth/forgot-password', forgotPasswordRateLimiter, async (req, res, next) => {
+    try {
+      const result = await forgotPassword(req.body || {});
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/auth/reset-password', async (req, res, next) => {
+    try {
+      const result = await resetPassword(req.body || {});
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }
