@@ -70,6 +70,16 @@ function createApp(options = {}) {
     }
   });
 
+  app.get('/api/health', async (req, res) => {
+    try {
+      const prisma = require('./lib/prisma');
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: 'ok', database: 'connected' });
+    } catch {
+      res.json({ status: 'ok', database: 'disconnected' });
+    }
+  });
+
   app.post('/api/auth/reset-password', async (req, res, next) => {
     try {
       const result = await resetPassword(req.body || {});

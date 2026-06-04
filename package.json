@@ -5,7 +5,13 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test 'test/*.test.js'"
+    "test": "node --test 'test/*.test.js'",
+    "db:start": "docker run -d --name 1835-postgres -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=1835 -p 5432:5432 postgres:16-alpine",
+    "db:stop": "docker rm -f 1835-postgres",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "repository": {
     "type": "git",
@@ -20,13 +26,18 @@
   },
   "homepage": "https://github.com/hm-lucx/1835_ze_ju_we_ti#readme",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.21.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "prisma": "^7.8.0",
     "supertest": "^7.2.2"
   }
 }

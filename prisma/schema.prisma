@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  birthdate    DateTime
+  createdAt    DateTime @default(now())
+
+  hostedGames         Game[]                @relation("HostedGames")
+  gamePlayers         GamePlayer[]
+  playerAccounts      PlayerAccount[]
+  ownedStocks         Stock[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum GameStatus {
+  LOBBY
+  RUNNING
+  PAUSED
+  FINISHED
+}
+
+enum GamePhase {
+  STOCK_ROUND
+  OPERATION_ROUND
+}
+
+model Game {
+  id          String     @id @default(cuid())
+  hostId      String
+  status      GameStatus @default(LOBBY)
+  inviteToken String     @unique @default(cuid())
+  createdAt   DateTime   @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  host           User            @relation("HostedGames", fields: [hostId], references: [id])
+  players        GamePlayer[]
+  gameState      GameState?
+  playerAccounts PlayerAccount[]
+  stocks         Stock[]
+  transactions   Transaction[]
+  saves          GameSave[]
+}
+
+model GamePlayer {
+  id       String   @id @default(cuid())
+  gameId   String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+}
+
+model GameState {
+  id              String    @id @default(cuid())
+  gameId          String    @unique
+  phase           GamePhase @default(STOCK_ROUND)
+  currentRound    Int       @default(1)
+  activeUserId    String?
+  activeCompanyId String?
+  stateJson       Json
+  updatedAt       DateTime  @updatedAt
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model PlayerAccount {
+  id      String @id @default(cuid())
+  gameId  String
+  userId  String
+  balance Int    @default(0)
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+}
+
+model Stock {
+  id             String    @id @default(cuid())
+  gameId         String
+  companyId      String
+  ownerId        String?
+  everCirculated Boolean   @default(false)
+  acquiredAt     DateTime?
+
+  game         Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  owner        User?         @relation(fields: [ownerId], references: [id])
+  transactions Transaction[]
+}
+
+enum TransactionType {
+  BUY_FROM_BANK
+  SELL_TO_BANK
+  BUY_FROM_PLAYER
+  SELL_TO_PLAYER
+  STARTING_CAPITAL
+  PAYOFF
+}
+
+model Transaction {
+  id        String          @id @default(cuid())
+  gameId    String
+  fromId    String?
+  toId      String?
+  stockId   String?
+  amount    Int
+  type      TransactionType
+  createdAt DateTime        @default(now())
+
+  game  Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  stock Stock? @relation(fields: [stockId], references: [id])
+}
+
+model GameSave {
+  id            String   @id @default(cuid())
+  gameId        String
+  savedAt       DateTime @default(now())
+  stateJson     Json
+  boardPhotoUrl String?
+  bankPhotoUrl  String?
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
