@@ -18,17 +18,31 @@ function getJwtSecret() {
 }
 
 function parseBirthDate(birthDate) {
-  const date = new Date(birthDate);
-  if (Number.isNaN(date.getTime())) {
+  if (typeof birthDate !== 'string') {
     throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
   }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate.trim());
+  if (!match) {
+    throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
+  }
+
   return date;
 }
 
 function isAtLeast16(birthDate, now = new Date()) {
-  let age = now.getFullYear() - birthDate.getFullYear();
-  const monthDiff = now.getMonth() - birthDate.getMonth();
-  const dayDiff = now.getDate() - birthDate.getDate();
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - birthDate.getUTCMonth();
+  const dayDiff = now.getUTCDate() - birthDate.getUTCDate();
 
   if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
     age -= 1;
