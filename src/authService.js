@@ -100,7 +100,6 @@ async function register({ username, password, passwordConfirm, birthDate }) {
     await db.user.create({
       data: {
         username: normalizedUsername,
-        email: `${normalizedUsername}@example.com`,
         passwordHash,
         birthdate: parsedBirthDate
       }
