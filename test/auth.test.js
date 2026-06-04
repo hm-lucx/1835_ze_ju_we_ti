@@ -106,6 +106,190 @@ test('Registrierung mit unterschiedlicher Passwort-Bestätigung wird abgewiesen'
   assert.equal(response.body.message, 'Passwort und Passwortbestätigung stimmen nicht überein.');
 });
 
+test('Passwort-Reset: Forgot-Password gibt immer gleiche Nachricht (ob Nutzer existiert oder nicht)', async () => {
+  const noUserResponse = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'nichtda' });
+
+  assert.equal(noUserResponse.status, 200);
+  assert.equal(noUserResponse.body.message, 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.');
+});
+
+test('Passwort-Reset: Forgot-Password erzeugt Token für existierenden Nutzer', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({
+      username: 'resetUser',
+      password: 'GeheimesPasswort123',
+      passwordConfirm: 'GeheimesPasswort123',
+      birthDate: '2000-01-01'
+    })
+    .expect(201);
+
+  const response = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'resetUser' });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.message, 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.');
+  assert.ok(response.body.token);
+});
+
+test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({
+      username: 'resetUser2',
+      password: 'GeheimesPasswort123',
+      passwordConfirm: 'GeheimesPasswort123',
+      birthDate: '2000-01-01'
+    })
+    .expect(201);
+
+  const forgotResponse = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'resetUser2' });
+
+  const token = forgotResponse.body.token;
+
+  const resetResponse = await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token,
+      newPassword: 'NeuesPasswort456',
+      newPasswordConfirm: 'NeuesPasswort456'
+    });
+
+  assert.equal(resetResponse.status, 200);
+  assert.equal(resetResponse.body.message, 'Passwort erfolgreich zurückgesetzt.');
+});
+
+test('Passwort-Reset: Kann sich nach Reset mit neuem Passwort anmelden', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({
+      username: 'resetUser3',
+      password: 'GeheimesPasswort123',
+      passwordConfirm: 'GeheimesPasswort123',
+      birthDate: '2000-01-01'
+    })
+    .expect(201);
+
+  const forgotResponse = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'resetUser3' });
+
+  const token = forgotResponse.body.token;
+
+  await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token,
+      newPassword: 'NeuesPasswort456',
+      newPasswordConfirm: 'NeuesPasswort456'
+    })
+    .expect(200);
+
+  const loginResponse = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'resetUser3', password: 'NeuesPasswort456' });
+
+  assert.equal(loginResponse.status, 200);
+  assert.ok(loginResponse.body.token);
+});
+
+test('Passwort-Reset: Altes Passwort funktioniert nicht mehr nach Reset', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({
+      username: 'resetUser4',
+      password: 'GeheimesPasswort123',
+      passwordConfirm: 'GeheimesPasswort123',
+      birthDate: '2000-01-01'
+    })
+    .expect(201);
+
+  const forgotResponse = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'resetUser4' });
+
+  const token = forgotResponse.body.token;
+
+  await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token,
+      newPassword: 'NeuesPasswort456',
+      newPasswordConfirm: 'NeuesPasswort456'
+    })
+    .expect(200);
+
+  const oldLoginResponse = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'resetUser4', password: 'GeheimesPasswort123' });
+
+  assert.equal(oldLoginResponse.status, 401);
+});
+
+test('Passwort-Reset: Token ist nur einmal verwendbar', async () => {
+  await request(app)
+    .post('/api/auth/register')
+    .send({
+      username: 'resetUser5',
+      password: 'GeheimesPasswort123',
+      passwordConfirm: 'GeheimesPasswort123',
+      birthDate: '2000-01-01'
+    })
+    .expect(201);
+
+  const forgotResponse = await request(app)
+    .post('/api/auth/forgot-password')
+    .send({ username: 'resetUser5' });
+
+  const token = forgotResponse.body.token;
+
+  await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token,
+      newPassword: 'NeuesPasswort456',
+      newPasswordConfirm: 'NeuesPasswort456'
+    })
+    .expect(200);
+
+  const secondResetResponse = await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token,
+      newPassword: 'Passwort789',
+      newPasswordConfirm: 'Passwort789'
+    });
+
+  assert.equal(secondResetResponse.status, 400);
+  assert.equal(secondResetResponse.body.message, 'Ungültiger oder abgelaufener Reset-Token.');
+});
+
+test('Passwort-Reset: Ungültiger Token wird abgewiesen', async () => {
+  const response = await request(app)
+    .post('/api/auth/reset-password')
+    .send({
+      token: 'ungueltiger-token',
+      newPassword: 'NeuesPasswort456',
+      newPasswordConfirm: 'NeuesPasswort456'
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'Ungültiger oder abgelaufener Reset-Token.');
+});
+
+test('Passwort-Reset: Fehlende Felder werden abgewiesen', async () => {
+  const response = await request(app)
+    .post('/api/auth/reset-password')
+    .send({ token: 'irgendwas', newPassword: 'Passwort' });
+
+  assert.equal(response.status, 400);
+});
+
 test('Rate Limiting greift bei zu vielen Login-Versuchen', async () => {
   await request(app)
     .post('/api/auth/register')
