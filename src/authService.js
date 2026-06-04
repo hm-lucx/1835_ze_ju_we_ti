@@ -1,9 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
+const nodemailer = require('nodemailer');
 
 const users = new Map();
+const passwordResetTokens = new Map();
 const fallbackJwtSecret = crypto.randomBytes(32).toString('hex');
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 class AuthError extends Error {
   constructor(statusCode, message) {
@@ -70,6 +73,46 @@ function createToken(username) {
   return jwt.sign({ sub: username }, getJwtSecret(), { expiresIn: '7d' });
 }
 
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getSmtpConfig() {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM;
+
+  if (!host || !user || !pass || !from) {
+    throw new Error('SMTP Konfiguration ist unvollständig.');
+  }
+
+  return {
+    host,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass },
+    from
+  };
+}
+
+async function sendPasswordResetEmail({ username, resetLink }) {
+  const smtp = getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.auth
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to: username,
+    subject: 'Passwort zurücksetzen',
+    text: `Setze dein Passwort mit diesem Link zurück (gültig für 1 Stunde): ${resetLink}`
+  });
+}
+
 async function register({ username, password, passwordConfirm, birthDate }) {
   assertRequiredString(username, 'Benutzername');
   assertRequiredString(password, 'Passwort');
@@ -132,8 +175,80 @@ async function login({ username, password }) {
   };
 }
 
+async function requestPasswordReset({ username }, options = {}) {
+  assertRequiredString(username, 'Benutzername');
+
+  const normalizedUsername = username.trim();
+  const user = users.get(normalizedUsername);
+  const genericResponse = {
+    message: 'Wenn ein passender Account existiert, wurde eine E-Mail zum Zurücksetzen versendet.'
+  };
+
+  if (!user) {
+    return genericResponse;
+  }
+
+  const now = options.now instanceof Date ? options.now : new Date();
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashResetToken(rawToken);
+
+  for (const [existingHash, tokenData] of passwordResetTokens.entries()) {
+    if (tokenData.username === normalizedUsername) {
+      passwordResetTokens.delete(existingHash);
+    }
+  }
+
+  passwordResetTokens.set(tokenHash, {
+    username: normalizedUsername,
+    expiresAt: new Date(now.getTime() + PASSWORD_RESET_TTL_MS).toISOString()
+  });
+
+  const sender = options.sendPasswordResetEmail || sendPasswordResetEmail;
+  const resetBaseUrl = options.resetBaseUrl || 'http://localhost:3000/reset-password';
+  const resetLink = `${resetBaseUrl}?token=${encodeURIComponent(rawToken)}`;
+  await sender({
+    username: normalizedUsername,
+    resetLink
+  });
+
+  return genericResponse;
+}
+
+async function resetPassword({ token, password, passwordConfirm }, options = {}) {
+  assertRequiredString(token, 'Reset-Token');
+  assertRequiredString(password, 'Passwort');
+  assertRequiredString(passwordConfirm, 'Passwortbestätigung');
+
+  if (password !== passwordConfirm) {
+    throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
+  }
+
+  const now = options.now instanceof Date ? options.now : new Date();
+  const tokenHash = hashResetToken(token.trim());
+  const tokenData = passwordResetTokens.get(tokenHash);
+
+  if (!tokenData) {
+    throw new AuthError(400, 'Reset-Link ist ungültig oder abgelaufen.');
+  }
+
+  if (new Date(tokenData.expiresAt).getTime() <= now.getTime()) {
+    passwordResetTokens.delete(tokenHash);
+    throw new AuthError(400, 'Reset-Link ist ungültig oder abgelaufen.');
+  }
+
+  const user = users.get(tokenData.username);
+  if (!user) {
+    passwordResetTokens.delete(tokenHash);
+    throw new AuthError(400, 'Reset-Link ist ungültig oder abgelaufen.');
+  }
+
+  user.passwordHash = await bcrypt.hash(password, 12);
+  passwordResetTokens.delete(tokenHash);
+}
+
 function resetUsers() {
   users.clear();
+  passwordResetTokens.clear();
 }
 
 function getStoredUser(username) {
@@ -144,7 +259,10 @@ module.exports = {
   AuthError,
   register,
   login,
+  requestPasswordReset,
+  resetPassword,
   resetUsers,
   getStoredUser,
-  isAtLeast16
+  isAtLeast16,
+  sendPasswordResetEmail
 };
