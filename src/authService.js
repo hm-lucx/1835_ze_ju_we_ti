@@ -266,17 +266,35 @@ async function resetPassword({ token, newPassword, newPasswordConfirm }) {
   return { message: 'Passwort erfolgreich zurückgesetzt.' };
 }
 
-function resetUsers() {
+async function resetUsers() {
   users.clear();
   resetTokens.clear();
   const db = getDb();
   if (db) {
-    db.passwordResetToken.deleteMany().catch(() => {});
-    db.user.deleteMany().catch(() => {});
+    try {
+      await db.passwordResetToken.deleteMany();
+      await db.gamePlayer.deleteMany();
+      await db.game.deleteMany();
+      await db.user.deleteMany();
+    } catch {
+      // ignore cleanup errors
+    }
   }
 }
 
-function getStoredUser(username) {
+async function getStoredUser(username) {
+  const db = getDb();
+  if (db) {
+    const user = await db.user.findUnique({ where: { username } });
+    if (user) {
+      return {
+        username: user.username,
+        birthDate: user.birthdate.toISOString(),
+        passwordHash: user.passwordHash
+      };
+    }
+    return undefined;
+  }
   return users.get(username);
 }
 

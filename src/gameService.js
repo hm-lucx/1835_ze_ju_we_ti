@@ -218,12 +218,16 @@ async function joinGame({ gameId, inviteToken, username }) {
   };
 }
 
-function resetGames() {
+async function resetGames() {
   games.clear();
   const db = getDb();
   if (db) {
-    db.gamePlayer.deleteMany().catch(() => {});
-    db.game.deleteMany().catch(() => {});
+    try {
+      await db.gamePlayer.deleteMany();
+      await db.game.deleteMany();
+    } catch {
+      // ignore cleanup errors
+    }
   }
 }
 

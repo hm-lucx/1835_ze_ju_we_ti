@@ -24,9 +24,9 @@ async function registerAndGetToken(app, username) {
   return res.body.token;
 }
 
-test.beforeEach(() => {
-  resetUsers();
-  resetGames();
+test.beforeEach(async () => {
+  await resetUsers();
+  await resetGames();
   app = createApp({ disableRateLimiting: true });
 });
 
