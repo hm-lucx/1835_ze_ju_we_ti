@@ -133,10 +133,12 @@ async function login({ username, password }) {
 
   const user = await db.user.findUnique({ where: { username: normalizedUsername } });
   if (!user) {
+    console.error(`[LOGIN] User "${normalizedUsername}" nicht gefunden.`);
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
   }
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
   if (!isPasswordValid) {
+    console.error(`[LOGIN] Passwort für "${normalizedUsername}" falsch (Hash-Länge: ${user.passwordHash.length}).`);
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
   }
 
