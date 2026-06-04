@@ -14,7 +14,16 @@ class AuthError extends Error {
 }
 
 function getJwtSecret() {
-  return process.env.JWT_SECRET || fallbackJwtSecret;
+  const secret = process.env.JWT_SECRET;
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET muss in Produktion gesetzt sein.');
+  }
+
+  return fallbackJwtSecret;
 }
 
 function parseBirthDate(birthDate) {
