@@ -7,7 +7,14 @@ const { GameError, createGame, getGame, joinGame, startGame } = require('./gameS
 function createApp(options = {}) {
   const app = express();
 
-  app.use(cors());
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true,
+  }));
+
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
 
   const registerRateLimiter = options.disableRateLimiting
     ? (req, res, next) => next()
