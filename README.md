@@ -105,6 +105,11 @@ open index.html
 # Option B: lokaler Server (empfohlen)
 python3 -m http.server 4173
 # dann im Browser öffnen: http://localhost:4173
+
+# Option C: Auth-API lokal starten
+npm install
+npm test
+npm start
 ```
 
 ### Deployment (statisch)
