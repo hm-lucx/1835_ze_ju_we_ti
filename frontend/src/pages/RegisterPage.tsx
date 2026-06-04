@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import AuthCard from '../components/auth/AuthCard';
@@ -45,11 +45,9 @@ export default function RegisterPage() {
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  const handleRegister = useCallback(async () => {
     setError('');
     if (!validate()) return;
-
     try {
       await register(username, password, passwordConfirm, birthDate, email);
       navigate('/lobby', { replace: true });
@@ -65,11 +63,11 @@ export default function RegisterPage() {
         setError('Registrierung fehlgeschlagen.');
       }
     }
-  }
+  }, [username, email, birthDate, password, passwordConfirm, register, navigate]);
 
   return (
     <AuthCard title="Registrierung" subtitle="Tritt dem Spiel bei">
-      <form onSubmit={handleSubmit}>
+      <div>
         <AuthInput
           label="Benutzername"
           type="text"
@@ -114,10 +112,10 @@ export default function RegisterPage() {
             {error}
           </p>
         )}
-        <AuthButton type="submit" loading={loading}>
+        <AuthButton onClick={handleRegister} loading={loading}>
           Registrieren
         </AuthButton>
-      </form>
+      </div>
       <p style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: '0.9rem', marginTop: '1rem' }}>
         Bereits registriert? <AuthLink to="/login" style={{ marginTop: 0 }}>Anmelden</AuthLink>
       </p>

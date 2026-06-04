@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import AuthCard from '../components/auth/AuthCard';
@@ -17,15 +17,12 @@ export default function LoginPage() {
     return <Navigate to="/lobby" replace />;
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  const handleLogin = useCallback(async () => {
     setError('');
-
     if (!username.trim() || !password) {
       setError('Bitte Benutzername und Passwort eingeben.');
       return;
     }
-
     try {
       await login(username, password);
       navigate('/lobby', { replace: true });
@@ -33,11 +30,11 @@ export default function LoginPage() {
       const apiErr = err as { message?: string };
       setError(apiErr.message || 'Anmeldung fehlgeschlagen.');
     }
-  }
+  }, [username, password, login, navigate]);
 
   return (
     <AuthCard title="1835" subtitle="Willkommen zurück">
-      <form onSubmit={handleSubmit}>
+      <div>
         <AuthInput
           label="Benutzername"
           type="text"
@@ -57,10 +54,10 @@ export default function LoginPage() {
             {error}
           </p>
         )}
-        <AuthButton type="submit" loading={loading}>
+        <AuthButton onClick={handleLogin} loading={loading}>
           Anmelden
         </AuthButton>
-      </form>
+      </div>
       <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
         <AuthLink to="/forgot-password">Passwort vergessen?</AuthLink>
       </div>

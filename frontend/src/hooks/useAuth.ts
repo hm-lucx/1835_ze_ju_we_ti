@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 const TOKEN_KEY = 'auth_token';
@@ -43,27 +43,32 @@ async function apiPost(path: string, body: unknown) {
   return data;
 }
 
+function storeToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
 export default function useAuth() {
   const [auth, setAuth] = useState<AuthState>(getStoredAuth);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (auth.token) {
-      localStorage.setItem(TOKEN_KEY, auth.token);
-    } else {
-      localStorage.removeItem(TOKEN_KEY);
-    }
-  }, [auth.token]);
+  const updateAuth = useCallback((next: AuthState) => {
+    storeToken(next.token);
+    setAuth(next);
+  }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     try {
       const data = await apiPost('/api/auth/login', { username, password });
-      setAuth({ token: data.token, user: data.user });
+      updateAuth({ token: data.token, user: data.user });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [updateAuth]);
 
   const register = useCallback(async (
     username: string,
@@ -77,11 +82,11 @@ export default function useAuth() {
       const data = await apiPost('/api/auth/register', {
         username, password, passwordConfirm, birthDate, email,
       });
-      setAuth({ token: data.token, user: data.user });
+      updateAuth({ token: data.token, user: data.user });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [updateAuth]);
 
   const forgotPassword = useCallback(async (username: string) => {
     setLoading(true);
@@ -102,8 +107,8 @@ export default function useAuth() {
   }, []);
 
   const logout = useCallback(() => {
-    setAuth({ user: null, token: null });
-  }, []);
+    updateAuth({ user: null, token: null });
+  }, [updateAuth]);
 
   return {
     user: auth.user,
