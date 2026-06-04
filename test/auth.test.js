@@ -118,12 +118,14 @@ test('Rate Limiting greift bei zu vielen Login-Versuchen', async () => {
     .expect(201);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    await request(app)
+    const attemptResponse = await request(app)
       .post('/api/auth/login')
       .send({
         username: 'spieler5',
         password: 'falsch'
       });
+
+    assert.equal(attemptResponse.status, 401);
   }
 
   const blockedResponse = await request(app)
