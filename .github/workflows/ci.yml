@@ -38,6 +38,8 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://dev:dev@localhost:5432/1835_test
 
       - name: Run migrations
         run: npx prisma migrate deploy
@@ -45,7 +47,7 @@ jobs:
           DATABASE_URL: postgresql://dev:dev@localhost:5432/1835_test
 
       - name: Run backend tests
-        run: node --test --test-concurrency=1 'test/*.test.js'
+        run: node --test --test-concurrency=1 test/auth.test.js test/game.test.js
         env:
           DATABASE_URL: postgresql://dev:dev@localhost:5432/1835_test
 

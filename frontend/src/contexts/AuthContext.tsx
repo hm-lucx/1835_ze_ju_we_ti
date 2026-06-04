@@ -16,7 +16,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   isAuthenticated: boolean;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<{ token: string; user: { username: string; birthDate: string } }>;
   register: (username: string, password: string, passwordConfirm: string, birthDate: string, email: string) => Promise<void>;
   forgotPassword: (username: string) => Promise<{ message: string }>;
   resetPassword: (token: string, newPassword: string, newPasswordConfirm: string) => Promise<{ message: string }>;
@@ -64,8 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     try {
-      const data = await apiPost('/api/auth/login', { username, password });
+      const data = await apiPost('/api/auth/login', { username, password }) as { token: string; user: { username: string; birthDate: string } };
       updateAuth({ token: data.token, user: data.user });
+      return data;
     } finally {
       setLoading(false);
     }

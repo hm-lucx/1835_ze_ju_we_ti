@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, joinGame, leaveGame, startGame } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, leaveGame, startGame } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -129,6 +129,15 @@ function createApp(options = {}) {
         message: 'Spielrunde erstellt.',
         game: result
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/games/mine', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await getMyGames(req.user.username);
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }
