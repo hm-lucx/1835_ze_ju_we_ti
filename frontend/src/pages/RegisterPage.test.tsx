@@ -37,6 +37,7 @@ describe('RegisterPage', () => {
     renderPage();
 
     expect(screen.getByLabelText('Benutzername')).toBeInTheDocument();
+    expect(screen.getByLabelText('E-Mail')).toBeInTheDocument();
     expect(screen.getByLabelText('Geburtsdatum')).toBeInTheDocument();
     expect(screen.getByLabelText('Passwort')).toBeInTheDocument();
     expect(screen.getByLabelText('Passwort bestätigen')).toBeInTheDocument();
@@ -46,6 +47,7 @@ describe('RegisterPage', () => {
     renderPage();
 
     await userEvent.type(screen.getByLabelText('Benutzername'), 'jung');
+    await userEvent.type(screen.getByLabelText('E-Mail'), 'jung@test.de');
     await userEvent.type(screen.getByLabelText('Geburtsdatum'), '2015-06-04');
     await userEvent.type(screen.getByLabelText('Passwort'), 'GeheimesPasswort123');
     await userEvent.type(screen.getByLabelText('Passwort bestätigen'), 'GeheimesPasswort123');
@@ -59,6 +61,7 @@ describe('RegisterPage', () => {
     renderPage();
 
     await userEvent.type(screen.getByLabelText('Benutzername'), 'testuser');
+    await userEvent.type(screen.getByLabelText('E-Mail'), 'test@test.de');
     await userEvent.type(screen.getByLabelText('Geburtsdatum'), '2000-01-01');
     await userEvent.type(screen.getByLabelText('Passwort'), 'Passwort123');
     await userEvent.type(screen.getByLabelText('Passwort bestätigen'), 'AnderesPasswort');
@@ -72,6 +75,7 @@ describe('RegisterPage', () => {
     renderPage();
 
     await userEvent.type(screen.getByLabelText('Benutzername'), 'ab');
+    await userEvent.type(screen.getByLabelText('E-Mail'), 'ab@test.de');
     await userEvent.type(screen.getByLabelText('Geburtsdatum'), '2000-01-01');
     await userEvent.type(screen.getByLabelText('Passwort'), 'Passwort123');
     await userEvent.type(screen.getByLabelText('Passwort bestätigen'), 'Passwort123');

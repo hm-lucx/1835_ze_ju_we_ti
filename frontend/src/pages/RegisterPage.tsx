@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const { register, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -34,6 +35,8 @@ export default function RegisterPage() {
   function validate(): boolean {
     const errors: Record<string, string> = {};
     if (username.trim().length < 3) errors.username = 'Mindestens 3 Zeichen.';
+    if (!email) errors.email = 'E-Mail ist erforderlich.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Ungültige E-Mail-Adresse.';
     if (password.length < 8) errors.password = 'Mindestens 8 Zeichen.';
     if (password !== passwordConfirm) errors.passwordConfirm = 'Passwörter stimmen nicht überein.';
     if (!birthDate) errors.birthDate = 'Bitte wähle dein Geburtsdatum.';
@@ -48,7 +51,7 @@ export default function RegisterPage() {
     if (!validate()) return;
 
     try {
-      await register(username, password, passwordConfirm, birthDate);
+      await register(username, password, passwordConfirm, birthDate, email);
       navigate('/lobby', { replace: true });
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
@@ -74,6 +77,14 @@ export default function RegisterPage() {
           onChange={(e) => setUsername(e.target.value)}
           errorMessage={fieldErrors.username}
           autoComplete="username"
+        />
+        <AuthInput
+          label="E-Mail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          errorMessage={fieldErrors.email}
+          autoComplete="email"
         />
         <AuthInput
           label="Geburtsdatum"

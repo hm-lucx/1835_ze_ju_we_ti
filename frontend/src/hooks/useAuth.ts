@@ -69,12 +69,13 @@ export default function useAuth() {
     username: string,
     password: string,
     passwordConfirm: string,
-    birthDate: string
+    birthDate: string,
+    email: string
   ) => {
     setLoading(true);
     try {
       const data = await apiPost('/api/auth/register', {
-        username, password, passwordConfirm, birthDate,
+        username, password, passwordConfirm, birthDate, email,
       });
       setAuth({ token: data.token, user: data.user });
     } finally {

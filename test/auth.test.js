@@ -17,6 +17,7 @@ test('Registrierung funktioniert und speichert Passwort gehasht', async () => {
     .post('/api/auth/register')
     .send({
       username: 'spieler1',
+      email: 'spieler1@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -37,6 +38,7 @@ test('Registrierung lehnt Minderjährige ab', async () => {
     .post('/api/auth/register')
     .send({
       username: 'zuJung',
+      email: 'zujung@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2015-01-01'
@@ -51,6 +53,7 @@ test('Anmeldung funktioniert mit Benutzername und Passwort', async () => {
     .post('/api/auth/register')
     .send({
       username: 'spieler2',
+      email: 'spieler2@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '1995-05-05'
@@ -75,6 +78,7 @@ test('Anmeldung mit falschem Passwort liefert verständliche Fehlermeldung', asy
     .post('/api/auth/register')
     .send({
       username: 'spieler3',
+      email: 'spieler3@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '1990-01-01'
@@ -97,6 +101,7 @@ test('Registrierung mit unterschiedlicher Passwort-Bestätigung wird abgewiesen'
     .post('/api/auth/register')
     .send({
       username: 'spieler4',
+      email: 'spieler4@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'AnderesPasswort123',
       birthDate: '1990-01-01'
@@ -120,6 +125,7 @@ test('Passwort-Reset: Forgot-Password erzeugt Token für existierenden Nutzer', 
     .post('/api/auth/register')
     .send({
       username: 'resetUser',
+      email: 'resetuser@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -140,6 +146,7 @@ test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
     .post('/api/auth/register')
     .send({
       username: 'resetUser2',
+      email: 'resetuser2@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -169,6 +176,7 @@ test('Passwort-Reset: Kann sich nach Reset mit neuem Passwort anmelden', async (
     .post('/api/auth/register')
     .send({
       username: 'resetUser3',
+      email: 'resetuser3@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -203,6 +211,7 @@ test('Passwort-Reset: Altes Passwort funktioniert nicht mehr nach Reset', async 
     .post('/api/auth/register')
     .send({
       username: 'resetUser4',
+      email: 'resetuser4@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -236,6 +245,7 @@ test('Passwort-Reset: Token ist nur einmal verwendbar', async () => {
     .post('/api/auth/register')
     .send({
       username: 'resetUser5',
+      email: 'resetuser5@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'
@@ -295,6 +305,7 @@ test('Rate Limiting greift bei zu vielen Login-Versuchen', async () => {
     .post('/api/auth/register')
     .send({
       username: 'spieler5',
+      email: 'spieler5@test.de',
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '1992-03-03'

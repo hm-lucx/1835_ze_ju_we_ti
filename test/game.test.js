@@ -17,6 +17,7 @@ async function registerAndGetToken(app, username) {
     .post('/api/auth/register')
     .send({
       username,
+      email: `${username}@test.de`,
       password: 'GeheimesPasswort123',
       passwordConfirm: 'GeheimesPasswort123',
       birthDate: '2000-01-01'

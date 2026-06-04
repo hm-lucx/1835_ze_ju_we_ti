@@ -72,13 +72,15 @@ function createToken(username) {
   return jwt.sign({ sub: username }, getJwtSecret(), { expiresIn: '7d' });
 }
 
-async function register({ username, password, passwordConfirm, birthDate }) {
+async function register({ username, email, password, passwordConfirm, birthDate }) {
   assertRequiredString(username, 'Benutzername');
+  assertRequiredString(email, 'E-Mail');
   assertRequiredString(password, 'Passwort');
   assertRequiredString(passwordConfirm, 'Passwortbestätigung');
   assertRequiredString(birthDate, 'Geburtsdatum');
 
   const normalizedUsername = username.trim();
+  const normalizedEmail = email.trim();
 
   if (password !== passwordConfirm) {
     throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
@@ -97,9 +99,14 @@ async function register({ username, password, passwordConfirm, birthDate }) {
     if (existing) {
       throw new AuthError(409, 'Benutzername ist bereits vergeben.');
     }
+    const existingEmail = await db.user.findUnique({ where: { email: normalizedEmail } });
+    if (existingEmail) {
+      throw new AuthError(409, 'E-Mail-Adresse ist bereits vergeben.');
+    }
     await db.user.create({
       data: {
         username: normalizedUsername,
+        email: normalizedEmail,
         passwordHash,
         birthdate: parsedBirthDate
       }
@@ -110,6 +117,7 @@ async function register({ username, password, passwordConfirm, birthDate }) {
     }
     users.set(normalizedUsername, {
       username: normalizedUsername,
+      email: normalizedEmail,
       birthDate: parsedBirthDate.toISOString(),
       passwordHash
     });
