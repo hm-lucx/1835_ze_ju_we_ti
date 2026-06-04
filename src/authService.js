@@ -140,11 +140,39 @@ function getStoredUser(username) {
   return users.get(username);
 }
 
+function verifyToken(token) {
+  try {
+    const payload = jwt.verify(token, getJwtSecret());
+    return { username: payload.sub };
+  } catch {
+    throw new AuthError(401, 'Ungültiger oder abgelaufener Token.');
+  }
+}
+
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Authentifizierung erforderlich.' });
+  }
+
+  try {
+    req.user = verifyToken(header.slice(7));
+    next();
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    return res.status(401).json({ message: 'Authentifizierung fehlgeschlagen.' });
+  }
+}
+
 module.exports = {
   AuthError,
   register,
   login,
   resetUsers,
   getStoredUser,
-  isAtLeast16
+  isAtLeast16,
+  verifyToken,
+  requireAuth
 };
