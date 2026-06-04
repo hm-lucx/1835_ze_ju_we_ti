@@ -32,7 +32,7 @@ function generateInviteToken() {
 async function createGame({ hostUsername }) {
   const id = generateId();
   const inviteToken = generateInviteToken();
-  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const inviteLink = `${baseUrl}/join?token=${inviteToken}&game=${id}`;
 
   const qrCodeSvg = await QRCode.toString(inviteLink, { type: 'svg' });
@@ -112,7 +112,7 @@ async function getGame(gameId, username) {
       host: (await db.user.findUnique({ where: { id: game.hostId } })).username,
       status: game.status,
       players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
-      inviteLink: `${process.env.BASE_URL || 'http://localhost:3000'}/join?token=${game.inviteToken}&game=${game.id}`,
+      inviteLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`,
       createdAt: game.createdAt.toISOString()
     };
   }
@@ -218,6 +218,67 @@ async function joinGame({ gameId, inviteToken, username }) {
   };
 }
 
+async function startGame({ gameId, username }) {
+  const db = getDb();
+  if (db) {
+    const game = await db.game.findUnique({
+      where: { id: gameId },
+      include: { players: { include: { user: true } } }
+    });
+
+    if (!game) {
+      throw new GameError(404, 'Spielrunde nicht gefunden.');
+    }
+
+    if (game.hostId !== (await db.user.findUnique({ where: { username } })).id) {
+      throw new GameError(403, 'Nur der Host kann das Spiel starten.');
+    }
+
+    if (game.status !== 'LOBBY') {
+      throw new GameError(400, 'Spielrunde hat bereits begonnen.');
+    }
+
+    const now = new Date();
+    const updated = await db.game.update({
+      where: { id: gameId },
+      data: { status: 'RUNNING', startedAt: now },
+      include: { players: { include: { user: true } } }
+    });
+
+    return {
+      id: updated.id,
+      host: username,
+      status: updated.status,
+      players: updated.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+      startedAt: updated.startedAt.toISOString()
+    };
+  }
+
+  const game = games.get(gameId);
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.host !== username) {
+    throw new GameError(403, 'Nur der Host kann das Spiel starten.');
+  }
+
+  if (game.status !== 'LOBBY') {
+    throw new GameError(400, 'Spielrunde hat bereits begonnen.');
+  }
+
+  game.status = 'RUNNING';
+  game.startedAt = new Date().toISOString();
+
+  return {
+    id: game.id,
+    host: game.host,
+    status: game.status,
+    players: game.players,
+    startedAt: game.startedAt
+  };
+}
+
 async function resetGames() {
   games.clear();
   const db = getDb();
@@ -236,6 +297,7 @@ module.exports = {
   createGame,
   getGame,
   joinGame,
+  startGame,
   resetGames,
   MAX_PLAYERS
 };
