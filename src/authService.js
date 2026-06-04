@@ -3,8 +3,6 @@ const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
 const { getDb } = require('./lib/db');
 
-const users = new Map();
-const resetTokens = new Map();
 const fallbackJwtSecret = crypto.randomBytes(32).toString('hex');
 
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
@@ -96,36 +94,25 @@ async function register({ username, email, password, passwordConfirm, birthDate 
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-
   const db = getDb();
-  if (db) {
-    const existing = await db.user.findUnique({ where: { username: normalizedUsername } });
-    if (existing) {
-      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
-    }
-    const existingEmail = await db.user.findUnique({ where: { email: normalizedEmail } });
-    if (existingEmail) {
-      throw new AuthError(409, 'E-Mail-Adresse ist bereits vergeben.');
-    }
-    await db.user.create({
-      data: {
-        username: normalizedUsername,
-        email: normalizedEmail,
-        passwordHash,
-        birthdate: parsedBirthDate
-      }
-    });
-  } else {
-    if (users.has(normalizedUsername)) {
-      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
-    }
-    users.set(normalizedUsername, {
+
+  const existing = await db.user.findUnique({ where: { username: normalizedUsername } });
+  if (existing) {
+    throw new AuthError(409, 'Benutzername ist bereits vergeben.');
+  }
+  const existingEmail = await db.user.findUnique({ where: { email: normalizedEmail } });
+  if (existingEmail) {
+    throw new AuthError(409, 'E-Mail-Adresse ist bereits vergeben.');
+  }
+
+  await db.user.create({
+    data: {
       username: normalizedUsername,
       email: normalizedEmail,
-      birthDate: parsedBirthDate.toISOString(),
-      passwordHash
-    });
-  }
+      passwordHash,
+      birthdate: parsedBirthDate
+    }
+  });
 
   const birthDateStr = parsedBirthDate.toISOString();
   return {
@@ -142,28 +129,9 @@ async function login({ username, password }) {
   assertRequiredString(password, 'Passwort');
 
   const normalizedUsername = username.trim();
-
   const db = getDb();
-  if (db) {
-    const user = await db.user.findUnique({ where: { username: normalizedUsername } });
-    if (!user) {
-      throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
-    }
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
-    }
-    const birthDateStr = user.birthdate.toISOString();
-    return {
-      token: createToken(normalizedUsername, birthDateStr),
-      user: {
-        username: user.username,
-        birthDate: birthDateStr
-      }
-    };
-  }
 
-  const user = users.get(normalizedUsername);
+  const user = await db.user.findUnique({ where: { username: normalizedUsername } });
   if (!user) {
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
   }
@@ -172,11 +140,12 @@ async function login({ username, password }) {
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
   }
 
+  const birthDateStr = user.birthdate.toISOString();
   return {
-    token: createToken(normalizedUsername, user.birthDate),
+    token: createToken(normalizedUsername, birthDateStr),
     user: {
       username: user.username,
-      birthDate: user.birthDate
+      birthDate: birthDateStr
     }
   };
 }
@@ -185,29 +154,9 @@ async function forgotPassword({ username }) {
   assertRequiredString(username, 'Benutzername');
 
   const normalizedUsername = username.trim();
-
   const db = getDb();
-  if (db) {
-    const user = await db.user.findUnique({ where: { username: normalizedUsername } });
-    if (!user) {
-      return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
-    }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
-
-    await db.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt
-      }
-    });
-
-    return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
-  }
-
-  const user = users.get(normalizedUsername);
+  const user = await db.user.findUnique({ where: { username: normalizedUsername } });
   if (!user) {
     return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
   }
@@ -215,10 +164,12 @@ async function forgotPassword({ username }) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
 
-  resetTokens.set(token, {
-    username: normalizedUsername,
-    expiresAt,
-    used: false
+  await db.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      token,
+      expiresAt
+    }
   });
 
   return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
@@ -238,81 +189,55 @@ async function resetPassword({ token, newPassword, newPasswordConfirm }) {
   }
 
   const db = getDb();
-  if (db) {
-    const storedToken = await db.passwordResetToken.findUnique({ where: { token } });
-    if (!storedToken || storedToken.usedAt || Date.now() > storedToken.expiresAt.getTime()) {
-      throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
-    }
 
-    const user = await db.user.findUnique({ where: { id: storedToken.userId } });
-    if (!user) {
-      await db.passwordResetToken.delete({ where: { id: storedToken.id } });
-      throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-
-    await db.$transaction([
-      db.passwordResetToken.update({
-        where: { id: storedToken.id },
-        data: { usedAt: new Date() }
-      }),
-      db.user.update({
-        where: { id: user.id },
-        data: { passwordHash }
-      })
-    ]);
-
-    return { message: 'Passwort erfolgreich zurückgesetzt.' };
-  }
-
-  const storedToken = resetTokens.get(token);
-  if (!storedToken || storedToken.used || Date.now() > storedToken.expiresAt.getTime()) {
+  const storedToken = await db.passwordResetToken.findUnique({ where: { token } });
+  if (!storedToken || storedToken.usedAt || Date.now() > storedToken.expiresAt.getTime()) {
     throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
   }
 
-  const user = users.get(storedToken.username);
+  const user = await db.user.findUnique({ where: { id: storedToken.userId } });
   if (!user) {
-    resetTokens.delete(token);
+    await db.passwordResetToken.delete({ where: { id: storedToken.id } });
     throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
   }
 
-  storedToken.used = true;
-  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await db.$transaction([
+    db.passwordResetToken.update({
+      where: { id: storedToken.id },
+      data: { usedAt: new Date() }
+    }),
+    db.user.update({
+      where: { id: user.id },
+      data: { passwordHash }
+    })
+  ]);
 
   return { message: 'Passwort erfolgreich zurückgesetzt.' };
 }
 
 async function resetUsers() {
-  users.clear();
-  resetTokens.clear();
   const db = getDb();
-  if (db) {
-    try {
-      await db.passwordResetToken.deleteMany();
-      await db.gamePlayer.deleteMany();
-      await db.game.deleteMany();
-      await db.user.deleteMany();
-    } catch {
-      // ignore cleanup errors
-    }
+  try {
+    await db.game.deleteMany();
+    await db.user.deleteMany();
+  } catch {
+    // ignore cleanup errors
   }
 }
 
 async function getStoredUser(username) {
   const db = getDb();
-  if (db) {
-    const user = await db.user.findUnique({ where: { username } });
-    if (user) {
-      return {
-        username: user.username,
-        birthDate: user.birthdate.toISOString(),
-        passwordHash: user.passwordHash
-      };
-    }
-    return undefined;
+  const user = await db.user.findUnique({ where: { username } });
+  if (user) {
+    return {
+      username: user.username,
+      birthDate: user.birthdate.toISOString(),
+      passwordHash: user.passwordHash
+    };
   }
-  return users.get(username);
+  return undefined;
 }
 
 function verifyToken(token) {
@@ -341,41 +266,29 @@ function requireAuth(req, res, next) {
   }
 }
 
-function getResetTokenForUser(username) {
+async function getResetTokenForUser(username) {
   const db = getDb();
-  if (db) {
-    return null;
-  }
-  for (const [token, data] of resetTokens) {
-    if (data.username === username && !data.used && Date.now() <= data.expiresAt.getTime()) {
-      return token;
-    }
-  }
-  return null;
+  const user = await db.user.findUnique({ where: { username } });
+  if (!user) return null;
+  const record = await db.passwordResetToken.findFirst({
+    where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' }
+  });
+  return record?.token || null;
 }
 
 async function createTestUser(username, email, password, birthDateStr) {
   const passwordHash = await bcrypt.hash(password, 12);
   const db = getDb();
-  if (db) {
-    const existing = await db.user.findUnique({ where: { username } });
-    if (existing) {
-      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
-    }
-    const parsed = parseBirthDate(birthDateStr);
-    await db.user.create({
-      data: { username, email, passwordHash, birthdate: parsed }
-    });
-    return createToken(username, parsed.toISOString());
-  }
-
-  if (users.has(username)) {
+  const existing = await db.user.findUnique({ where: { username } });
+  if (existing) {
     throw new AuthError(409, 'Benutzername ist bereits vergeben.');
   }
-  const date = parseBirthDate(birthDateStr);
-  const birthDateISO = date.toISOString();
-  users.set(username, { username, email, birthDate: birthDateISO, passwordHash });
-  return createToken(username, birthDateISO);
+  const parsed = parseBirthDate(birthDateStr);
+  await db.user.create({
+    data: { username, email, passwordHash, birthdate: parsed }
+  });
+  return createToken(username, parsed.toISOString());
 }
 
 module.exports = {

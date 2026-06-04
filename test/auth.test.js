@@ -28,7 +28,7 @@ test('Registrierung funktioniert und speichert Passwort gehasht', async () => {
   assert.equal(response.body.user.username, 'spieler1');
   assert.ok(response.body.token);
 
-  const storedUser = getStoredUser('spieler1');
+  const storedUser = await getStoredUser('spieler1');
   assert.ok(storedUser);
   assert.notEqual(storedUser.passwordHash, 'GeheimesPasswort123');
 });
@@ -157,7 +157,7 @@ test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser2' });
 
-  const token = _getResetTokenForUser('resetUser2');
+  const token = await _getResetTokenForUser('resetUser2');
 
   const resetResponse = await request(app)
     .post('/api/auth/reset-password')
@@ -187,7 +187,7 @@ test('Passwort-Reset: Kann sich nach Reset mit neuem Passwort anmelden', async (
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser3' });
 
-  const token = _getResetTokenForUser('resetUser3');
+  const token = await _getResetTokenForUser('resetUser3');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -222,7 +222,7 @@ test('Passwort-Reset: Altes Passwort funktioniert nicht mehr nach Reset', async 
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser4' });
 
-  const token = _getResetTokenForUser('resetUser4');
+  const token = await _getResetTokenForUser('resetUser4');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -256,7 +256,7 @@ test('Passwort-Reset: Token ist nur einmal verwendbar', async () => {
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser5' });
 
-  const token = _getResetTokenForUser('resetUser5');
+  const token = await _getResetTokenForUser('resetUser5');
 
   await request(app)
     .post('/api/auth/reset-password')

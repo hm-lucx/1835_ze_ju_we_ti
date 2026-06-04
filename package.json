@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test 'test/*.test.js'",
+    "test": "node --test --test-concurrency=1 'test/*.test.js'",
+    "test:local": "DATABASE_URL=\"postgresql://dev:dev@localhost:5432/1835\" node --test --test-concurrency=1 'test/*.test.js'",
     "db:start": "docker run -d --name 1835-postgres -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=1835 -p 5432:5432 postgres:16-alpine",
     "db:stop": "docker rm -f 1835-postgres",
     "db:migrate": "prisma migrate dev",

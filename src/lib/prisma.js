@@ -5,6 +5,9 @@ const { PrismaClient } = require('../generated/prisma');
 const globalForPrisma = globalThis;
 
 function createPrismaClient() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL muss gesetzt sein.');
+  }
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
