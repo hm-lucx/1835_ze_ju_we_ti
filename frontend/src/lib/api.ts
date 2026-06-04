@@ -25,7 +25,7 @@ export async function apiPost(path: string, body?: unknown, token?: string) {
   return handleResponse(res);
 }
 
-export async function apiGet(path: string, token: string) {
+export async function apiGet(path: string, token?: string) {
   const res = await fetch(`${API_URL}${path}`, {
     headers: getAuthHeaders(token),
   });

@@ -127,12 +127,14 @@ async function getGame(gameId, username) {
     throw new GameError(403, 'Nur Teilnehmer können diese Runde einsehen.');
   }
 
+  const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`;
+
   return {
     id: game.id,
     host: game.host,
     status: game.status,
     players: game.players,
-    inviteLink: game.inviteLink,
+    inviteLink,
     qrCodeSvg: game.qrCodeSvg,
     createdAt: game.createdAt
   };

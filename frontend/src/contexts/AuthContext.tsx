@@ -44,7 +44,7 @@ function getStoredAuth(): AuthState {
     }
     return {
       token,
-      user: { username: payload.sub, birthDate: '' },
+      user: { username: payload.sub, birthDate: payload.birthDate || '' },
     };
   } catch {
     localStorage.removeItem(TOKEN_KEY);

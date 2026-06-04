@@ -47,9 +47,9 @@ function parseBirthDate(birthDate) {
 }
 
 function isAtLeast16(birthDate, now = new Date()) {
-  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
-  const monthDiff = now.getUTCMonth() - birthDate.getUTCMonth();
-  const dayDiff = now.getUTCDate() - birthDate.getUTCDate();
+  let age = now.getFullYear() - birthDate.getFullYear();
+  const monthDiff = now.getMonth() - birthDate.getMonth();
+  const dayDiff = now.getDate() - birthDate.getDate();
   if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
     age -= 1;
   }
@@ -62,8 +62,10 @@ function assertRequiredString(value, label) {
   }
 }
 
-function createToken(username) {
-  return jwt.sign({ sub: username }, getJwtSecret(), { expiresIn: '7d' });
+function createToken(username, birthDate) {
+  const payload = { sub: username };
+  if (birthDate) payload.birthDate = birthDate;
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 }
 
 async function register({ username, email, password, passwordConfirm, birthDate }) {
@@ -125,11 +127,12 @@ async function register({ username, email, password, passwordConfirm, birthDate 
     });
   }
 
+  const birthDateStr = parsedBirthDate.toISOString();
   return {
-    token: createToken(normalizedUsername),
+    token: createToken(normalizedUsername, birthDateStr),
     user: {
       username: normalizedUsername,
-      birthDate: parsedBirthDate.toISOString()
+      birthDate: birthDateStr
     }
   };
 }
@@ -150,11 +153,12 @@ async function login({ username, password }) {
     if (!isPasswordValid) {
       throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
     }
+    const birthDateStr = user.birthdate.toISOString();
     return {
-      token: createToken(normalizedUsername),
+      token: createToken(normalizedUsername, birthDateStr),
       user: {
         username: user.username,
-        birthDate: user.birthdate.toISOString()
+        birthDate: birthDateStr
       }
     };
   }
@@ -169,7 +173,7 @@ async function login({ username, password }) {
   }
 
   return {
-    token: createToken(normalizedUsername),
+    token: createToken(normalizedUsername, user.birthDate),
     user: {
       username: user.username,
       birthDate: user.birthDate
@@ -224,6 +228,10 @@ async function resetPassword({ token, newPassword, newPasswordConfirm }) {
   assertRequiredString(token, 'Token');
   assertRequiredString(newPassword, 'Passwort');
   assertRequiredString(newPasswordConfirm, 'Passwortbestätigung');
+
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new AuthError(400, `Passwort muss mindestens ${PASSWORD_MIN_LENGTH} Zeichen lang sein.`);
+  }
 
   if (newPassword !== newPasswordConfirm) {
     throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
@@ -358,15 +366,16 @@ async function createTestUser(username, email, password, birthDateStr) {
     await db.user.create({
       data: { username, email, passwordHash, birthdate: parsed }
     });
-    return createToken(username);
+    return createToken(username, parsed.toISOString());
   }
 
   if (users.has(username)) {
     throw new AuthError(409, 'Benutzername ist bereits vergeben.');
   }
   const date = parseBirthDate(birthDateStr);
-  users.set(username, { username, email, birthDate: date.toISOString(), passwordHash });
-  return createToken(username);
+  const birthDateISO = date.toISOString();
+  users.set(username, { username, email, birthDate: birthDateISO, passwordHash });
+  return createToken(username, birthDateISO);
 }
 
 module.exports = {
@@ -380,6 +389,6 @@ module.exports = {
   isAtLeast16,
   verifyToken,
   requireAuth,
-  getResetTokenForUser,
+  _getResetTokenForUser: getResetTokenForUser,
   createTestUser
 };

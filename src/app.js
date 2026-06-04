@@ -56,6 +56,16 @@ function createApp(options = {}) {
     message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
   });
 
+  const gameRateLimiter = options.disableRateLimiting
+    ? (req, res, next) => next()
+    : rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
+  });
+
   app.use(express.json({ limit: '1mb' }));
 
   app.post('/api/auth/register', registerRateLimiter, async (req, res, next) => {
@@ -110,7 +120,7 @@ function createApp(options = {}) {
     }
   });
 
-  app.post('/api/games', requireAuth, async (req, res, next) => {
+  app.post('/api/games', requireAuth, gameRateLimiter, async (req, res, next) => {
     try {
       const result = await createGame({ hostUsername: req.user.username });
       res.status(201).json({
@@ -122,7 +132,7 @@ function createApp(options = {}) {
     }
   });
 
-  app.get('/api/games/:id', requireAuth, async (req, res, next) => {
+  app.get('/api/games/:id', requireAuth, gameRateLimiter, async (req, res, next) => {
     try {
       const result = await getGame(req.params.id, req.user.username);
       res.status(200).json({ game: result });
@@ -131,7 +141,7 @@ function createApp(options = {}) {
     }
   });
 
-  app.post('/api/games/:id/start', requireAuth, async (req, res, next) => {
+  app.post('/api/games/:id/start', requireAuth, gameRateLimiter, async (req, res, next) => {
     try {
       const result = await startGame({
         gameId: req.params.id,
@@ -146,7 +156,7 @@ function createApp(options = {}) {
     }
   });
 
-  app.post('/api/games/:id/join', requireAuth, async (req, res, next) => {
+  app.post('/api/games/:id/join', requireAuth, gameRateLimiter, async (req, res, next) => {
     try {
       const result = await joinGame({
         gameId: req.params.id,

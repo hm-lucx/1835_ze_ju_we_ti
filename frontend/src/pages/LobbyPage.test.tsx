@@ -1,0 +1,236 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import LobbyPage from './LobbyPage';
+
+const mockToken = 'test-token';
+const mockUser = { username: 'host1', birthDate: '2000-01-01' };
+
+const mockNavigate = vi.fn();
+const mockApiPost = vi.fn();
+const mockApiGet = vi.fn();
+
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: mockUser,
+    token: mockToken,
+    isAuthenticated: true,
+    loading: false,
+    login: vi.fn(),
+    register: vi.fn(),
+    forgotPassword: vi.fn(),
+    resetPassword: vi.fn(),
+    logout: vi.fn(),
+  }),
+  AuthProvider: ({ children }: any) => children,
+}));
+
+vi.mock('../lib/api', () => ({
+  apiPost: (...args: any[]) => mockApiPost(...args),
+  apiGet: (...args: any[]) => mockApiGet(...args),
+}));
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual as any,
+    useNavigate: () => mockNavigate,
+    useSearchParams: () => [new URLSearchParams(), vi.fn()],
+  };
+});
+
+function renderPage() {
+  return render(
+    <BrowserRouter>
+      <LobbyPage />
+    </BrowserRouter>
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('LobbyPage', () => {
+  it('zeigt Erstellen-Button wenn kein Spiel geladen ist', () => {
+    renderPage();
+    expect(screen.getByText('Neue Runde erstellen')).toBeInTheDocument();
+  });
+
+  it('erstellt ein Spiel beim Klick auf Erstellen', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Runde erstellt')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Spieler: 1 \/ 7/)).toBeInTheDocument();
+  });
+
+  it('zeigt Fehler beim Erstellen wenn API fehlschlägt', async () => {
+    mockApiPost.mockRejectedValueOnce({ message: 'Fehler beim Erstellen.' });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Fehler beim Erstellen.')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Spielerliste nach Erstellung an', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('host1 (Du)')).toBeInTheDocument();
+      expect(screen.getByText('player1')).toBeInTheDocument();
+    });
+  });
+
+  it('Start-Button ist deaktiviert mit weniger als 3 Spielern', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      const startButton = screen.getByText('Spiel starten');
+      expect(startButton.closest('button')).toBeDisabled();
+    });
+
+    expect(screen.getByText(/Warte auf mindestens 3 Spieler/)).toBeInTheDocument();
+  });
+
+  it('Start-Button ist aktiviert mit 3 Spielern', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+          { username: 'player2', joinedAt: new Date().toISOString() },
+        ],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      const startButton = screen.getByText('Spiel starten');
+      expect(startButton.closest('button')).not.toBeDisabled();
+    });
+  });
+
+  it('zeigt Spiel läuft nach erfolgreichem Start', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+          { username: 'player2', joinedAt: new Date().toISOString() },
+        ],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel starten')).toBeInTheDocument();
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    await userEvent.click(screen.getByText('Spiel starten'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel läuft')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt QR-Code nach Spielerstellung an', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg viewBox="0 0 100 100"><rect/></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      const qrImage = screen.getByAltText('QR-Code zum Beitreten');
+      expect(qrImage).toBeInTheDocument();
+      expect(qrImage).toHaveAttribute('src', expect.stringContaining('svg'));
+    });
+  });
+
+  it('zeigt angemeldeten Benutzernamen an', () => {
+    renderPage();
+    expect(screen.getByText(/host1/)).toBeInTheDocument();
+  });
+});

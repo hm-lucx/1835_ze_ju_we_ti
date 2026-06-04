@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 
 const { createApp } = require('../src/app');
-const { resetUsers, getStoredUser, getResetTokenForUser } = require('../src/authService');
+const { resetUsers, getStoredUser, _getResetTokenForUser } = require('../src/authService');
 
 let app;
 
@@ -157,7 +157,7 @@ test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser2' });
 
-  const token = getResetTokenForUser('resetUser2');
+  const token = _getResetTokenForUser('resetUser2');
 
   const resetResponse = await request(app)
     .post('/api/auth/reset-password')
@@ -187,7 +187,7 @@ test('Passwort-Reset: Kann sich nach Reset mit neuem Passwort anmelden', async (
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser3' });
 
-  const token = getResetTokenForUser('resetUser3');
+  const token = _getResetTokenForUser('resetUser3');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -222,7 +222,7 @@ test('Passwort-Reset: Altes Passwort funktioniert nicht mehr nach Reset', async 
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser4' });
 
-  const token = getResetTokenForUser('resetUser4');
+  const token = _getResetTokenForUser('resetUser4');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -256,7 +256,7 @@ test('Passwort-Reset: Token ist nur einmal verwendbar', async () => {
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser5' });
 
-  const token = getResetTokenForUser('resetUser5');
+  const token = _getResetTokenForUser('resetUser5');
 
   await request(app)
     .post('/api/auth/reset-password')
