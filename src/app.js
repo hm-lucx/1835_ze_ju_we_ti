@@ -4,7 +4,15 @@ const { AuthError, register, login } = require('./authService');
 
 function createApp() {
   const app = express();
-  const authRateLimiter = rateLimit({
+  const registerRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
+  });
+
+  const loginRateLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 5,
     standardHeaders: true,
@@ -14,7 +22,7 @@ function createApp() {
 
   app.use(express.json());
 
-  app.post('/api/auth/register', authRateLimiter, async (req, res, next) => {
+  app.post('/api/auth/register', registerRateLimiter, async (req, res, next) => {
     try {
       const result = await register(req.body || {});
       res.status(201).json({
@@ -26,7 +34,7 @@ function createApp() {
     }
   });
 
-  app.post('/api/auth/login', authRateLimiter, async (req, res, next) => {
+  app.post('/api/auth/login', loginRateLimiter, async (req, res, next) => {
     try {
       const result = await login(req.body || {});
       res.status(200).json({
