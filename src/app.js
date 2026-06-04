@@ -1,10 +1,13 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { AuthError, register, login, forgotPassword, resetPassword } = require('./authService');
+const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
+const { GameError, createGame, getGame, joinGame } = require('./gameService');
 
-function createApp() {
+function createApp(options = {}) {
   const app = express();
-  const registerRateLimiter = rateLimit({
+  const registerRateLimiter = options.disableRateLimiting
+    ? (req, res, next) => next()
+    : rateLimit({
     windowMs: 60 * 1000,
     max: 5,
     standardHeaders: true,
@@ -12,9 +15,21 @@ function createApp() {
     message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
   });
 
-  const loginRateLimiter = rateLimit({
+  const loginRateLimiter = options.disableRateLimiting
+    ? (req, res, next) => next()
+    : rateLimit({
     windowMs: 60 * 1000,
     max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
+  });
+
+  const forgotPasswordRateLimiter = options.disableRateLimiting
+    ? (req, res, next) => next()
+    : rateLimit({
+    windowMs: 60 * 1000,
+    max: 3,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
@@ -46,14 +61,6 @@ function createApp() {
     }
   });
 
-  const forgotPasswordRateLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 3,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: 'Zu viele Anfragen. Bitte versuche es in einer Minute erneut.' }
-  });
-
   app.post('/api/auth/forgot-password', forgotPasswordRateLimiter, async (req, res, next) => {
     try {
       const result = await forgotPassword(req.body || {});
@@ -72,8 +79,45 @@ function createApp() {
     }
   });
 
+  app.post('/api/games', requireAuth, async (req, res, next) => {
+    try {
+      const result = await createGame({ hostUsername: req.user.username });
+      res.status(201).json({
+        message: 'Spielrunde erstellt.',
+        game: result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/games/:id', requireAuth, async (req, res, next) => {
+    try {
+      const result = getGame(req.params.id, req.user.username);
+      res.status(200).json({ game: result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/join', requireAuth, async (req, res, next) => {
+    try {
+      const result = joinGame({
+        gameId: req.params.id,
+        inviteToken: req.body.inviteToken,
+        username: req.user.username
+      });
+      res.status(200).json({
+        message: 'Du bist der Runde beigetreten.',
+        game: result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.use((error, req, res, next) => {
-    if (error instanceof AuthError) {
+    if (error instanceof AuthError || error instanceof GameError) {
       return res.status(error.statusCode).json({ message: error.message });
     }
 
