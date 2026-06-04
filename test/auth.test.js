@@ -7,8 +7,8 @@ const { resetUsers, getStoredUser } = require('../src/authService');
 
 let app;
 
-test.beforeEach(() => {
-  resetUsers();
+test.beforeEach(async () => {
+  await resetUsers();
   app = createApp();
 });
 

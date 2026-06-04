@@ -6,7 +6,7 @@ const users = new Map();
 const resetTokens = new Map();
 const fallbackJwtSecret = crypto.randomBytes(32).toString('hex');
 
-const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 
 class AuthError extends Error {
   constructor(statusCode, message) {
@@ -18,36 +18,37 @@ class AuthError extends Error {
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (secret) {
-    return secret;
-  }
-
+  if (secret) return secret;
   if (process.env.NODE_ENV === 'production') {
     throw new Error('JWT_SECRET muss in Produktion gesetzt sein.');
   }
-
   return fallbackJwtSecret;
+}
+
+function getDb() {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    return require('./lib/prisma');
+  } catch {
+    return null;
+  }
 }
 
 function parseBirthDate(birthDate) {
   if (typeof birthDate !== 'string') {
     throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
   }
-
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate.trim());
   if (!match) {
     throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
   }
-
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day));
-
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
     throw new AuthError(400, 'Bitte gib ein gültiges Geburtsdatum an.');
   }
-
   return date;
 }
 
@@ -55,11 +56,9 @@ function isAtLeast16(birthDate, now = new Date()) {
   let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
   const monthDiff = now.getUTCMonth() - birthDate.getUTCMonth();
   const dayDiff = now.getUTCDate() - birthDate.getUTCDate();
-
   if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
     age -= 1;
   }
-
   return age >= 16;
 }
 
@@ -85,21 +84,37 @@ async function register({ username, password, passwordConfirm, birthDate }) {
     throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
   }
 
-  if (users.has(normalizedUsername)) {
-    throw new AuthError(409, 'Benutzername ist bereits vergeben.');
-  }
-
   const parsedBirthDate = parseBirthDate(birthDate);
   if (!isAtLeast16(parsedBirthDate)) {
     throw new AuthError(403, 'Registrierung erst ab 16 Jahren möglich.');
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  users.set(normalizedUsername, {
-    username: normalizedUsername,
-    birthDate: parsedBirthDate.toISOString(),
-    passwordHash
-  });
+
+  const db = getDb();
+  if (db) {
+    const existing = await db.user.findUnique({ where: { username: normalizedUsername } });
+    if (existing) {
+      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
+    }
+    await db.user.create({
+      data: {
+        username: normalizedUsername,
+        email: `${normalizedUsername}@example.com`,
+        passwordHash,
+        birthdate: parsedBirthDate
+      }
+    });
+  } else {
+    if (users.has(normalizedUsername)) {
+      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
+    }
+    users.set(normalizedUsername, {
+      username: normalizedUsername,
+      birthDate: parsedBirthDate.toISOString(),
+      passwordHash
+    });
+  }
 
   return {
     token: createToken(normalizedUsername),
@@ -115,12 +130,30 @@ async function login({ username, password }) {
   assertRequiredString(password, 'Passwort');
 
   const normalizedUsername = username.trim();
-  const user = users.get(normalizedUsername);
 
+  const db = getDb();
+  if (db) {
+    const user = await db.user.findUnique({ where: { username: normalizedUsername } });
+    if (!user) {
+      throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
+    }
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
+    }
+    return {
+      token: createToken(normalizedUsername),
+      user: {
+        username: user.username,
+        birthDate: user.birthdate.toISOString()
+      }
+    };
+  }
+
+  const user = users.get(normalizedUsername);
   if (!user) {
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
   }
-
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
   if (!isPasswordValid) {
     throw new AuthError(401, 'Ungültiger Benutzername oder Passwort.');
@@ -139,9 +172,29 @@ async function forgotPassword({ username }) {
   assertRequiredString(username, 'Benutzername');
 
   const normalizedUsername = username.trim();
-  const user = users.get(normalizedUsername);
 
-  // Don't reveal whether the user exists
+  const db = getDb();
+  if (db) {
+    const user = await db.user.findUnique({ where: { username: normalizedUsername } });
+    if (!user) {
+      return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+
+    await db.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt
+      }
+    });
+
+    return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.', token };
+  }
+
+  const user = users.get(normalizedUsername);
   if (!user) {
     return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
   }
@@ -167,18 +220,37 @@ async function resetPassword({ token, newPassword, newPasswordConfirm }) {
     throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
   }
 
+  const db = getDb();
+  if (db) {
+    const storedToken = await db.passwordResetToken.findUnique({ where: { token } });
+    if (!storedToken || storedToken.usedAt || Date.now() > storedToken.expiresAt.getTime()) {
+      throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+    }
+
+    const user = await db.user.findUnique({ where: { id: storedToken.userId } });
+    if (!user) {
+      await db.passwordResetToken.delete({ where: { id: storedToken.id } });
+      throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await db.$transaction([
+      db.passwordResetToken.update({
+        where: { id: storedToken.id },
+        data: { usedAt: new Date() }
+      }),
+      db.user.update({
+        where: { id: user.id },
+        data: { passwordHash }
+      })
+    ]);
+
+    return { message: 'Passwort erfolgreich zurückgesetzt.' };
+  }
+
   const storedToken = resetTokens.get(token);
-
-  if (!storedToken) {
-    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
-  }
-
-  if (storedToken.used) {
-    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
-  }
-
-  if (Date.now() > storedToken.expiresAt.getTime()) {
-    resetTokens.delete(token);
+  if (!storedToken || storedToken.used || Date.now() > storedToken.expiresAt.getTime()) {
     throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
   }
 
@@ -194,12 +266,35 @@ async function resetPassword({ token, newPassword, newPasswordConfirm }) {
   return { message: 'Passwort erfolgreich zurückgesetzt.' };
 }
 
-function resetUsers() {
+async function resetUsers() {
   users.clear();
   resetTokens.clear();
+  const db = getDb();
+  if (db) {
+    try {
+      await db.passwordResetToken.deleteMany();
+      await db.gamePlayer.deleteMany();
+      await db.game.deleteMany();
+      await db.user.deleteMany();
+    } catch {
+      // ignore cleanup errors
+    }
+  }
 }
 
-function getStoredUser(username) {
+async function getStoredUser(username) {
+  const db = getDb();
+  if (db) {
+    const user = await db.user.findUnique({ where: { username } });
+    if (user) {
+      return {
+        username: user.username,
+        birthDate: user.birthdate.toISOString(),
+        passwordHash: user.passwordHash
+      };
+    }
+    return undefined;
+  }
   return users.get(username);
 }
 

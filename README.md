@@ -4,6 +4,50 @@
 
 ---
 
+## Quick Start
+
+### 1. Datenbank starten (PostgreSQL via Docker)
+
+```bash
+# Einmalig starten (Port 5432)
+docker run -d --name 1835-postgres \
+  -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=dev \
+  -e POSTGRES_DB=1835 -p 5432:5432 postgres:16-alpine
+
+# Migration einspielen (Tabellen anlegen)
+DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" npm run db:migrate
+```
+
+### 2. Backend starten (Port 3000)
+
+```bash
+DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" npm start
+```
+
+### 3. Frontend starten (Port 5173)
+
+```bash
+cd frontend && npx vite
+```
+
+Dann im Browser öffnen: **http://localhost:5173**
+
+### 4. Testen
+
+```bash
+# Backend-Tests (ohne DB)
+npm test
+
+# Backend-Tests mit DB
+DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" \
+  node --test --test-concurrency=1 'test/*.test.js'
+
+# Frontend-Tests
+cd frontend && npx vitest run
+```
+
+---
+
 ## Überblick
 
 **1835** ist ein komplexes Eisenbahn-Aktienspiel, das in der deutschen Gründerzeit (um 1835) angesiedelt ist. Dieses Projekt digitalisiert die Spielverwaltung: Konten, Aktienbesitz, Gesellschaften, Phasen und Regelabläufe – damit der Fokus am Tisch auf der Strategie liegt, nicht auf der Buchhaltung.

@@ -1,2 +1,8 @@
 node_modules/
 coverage/
+.env
+*.tsbuildinfo
+src/generated/
+frontend/dist/
+frontend/node_modules/
+frontend/*.tsbuildinfo
