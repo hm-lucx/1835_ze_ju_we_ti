@@ -4,6 +4,14 @@
 
 Das System ist als **Client-Server-Architektur** aufgebaut. Ein React-Frontend kommuniziert über eine REST-API und WebSockets mit einem Node.js/Express-Backend. Die gesamte Spiellogik liegt ausschließlich serverseitig – der Client rendert nur den vom Server verwalteten Spielzustand.
 
+## Plattformstrategie: Web-First mit App-Option
+
+- **Primäre Plattform:** Responsive Web-Anwendung (Browser-first) mit Fokus auf Tablet-Nutzung.
+- **Tablet-Ziel:** Layout und Interaktion sind für Breiten ab **768px** optimiert.
+- **Browser-Zielplattform:** Aktuelle Versionen von **Chrome, Safari und Firefox**.
+- **App-Migrationspfad:** UI- und Domänenlogik werden klar getrennt (API/WebSocket als Schnittstelle), damit eine spätere Hülle via **React Native** oder **Capacitor** ohne Neuschreiben der Kernlogik möglich bleibt.
+- **Kein Framework-Lock-in:** Geschäftslogik bleibt im Backend; Frontend nutzt standardnahe Web-Patterns (HTTP/WebSocket, zustandsgetriebene Views) statt plattformspezifischer Hardcouplings.
+
 ```
 ┌─────────────────────────────────────────────┐
 │              Browser / Tablet               │

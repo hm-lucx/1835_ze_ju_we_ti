@@ -8,6 +8,8 @@
 
 **1835** ist ein komplexes Eisenbahn-Aktienspiel, das in der deutschen Gründerzeit (um 1835) angesiedelt ist. Dieses Projekt digitalisiert die Spielverwaltung: Konten, Aktienbesitz, Gesellschaften, Phasen und Regelabläufe – damit der Fokus am Tisch auf der Strategie liegt, nicht auf der Buchhaltung.
 
+Der aktuelle Stand ist ein **Web-First-Grundgerüst**, das als responsive Browser-Anwendung startet und bewusst so dokumentiert ist, dass eine spätere Migration auf eine App-Hülle (z. B. React Native oder Capacitor) möglich bleibt.
+
 ### Kernfunktionen
 
 - 🔐 **Authentifizierung** – Registrierung, Login, Passwort-Reset per E-Mail
@@ -87,40 +89,30 @@
 
 ### Voraussetzungen
 
-- Node.js >= 20
-- PostgreSQL >= 15 (oder Docker)
-- npm >= 10
+- Ein Browser (Chrome, Safari oder Firefox)
+- Optional: Python 3 für einen lokalen Static-Server
 
 ### Installation
 
 ```bash
 # Repository klonen
-git clone https://github.com/dein-org/1835.git
-cd 1835
+git clone https://github.com/hm-lucx/1835_ze_ju_we_ti.git
+cd 1835_ze_ju_we_ti
 
-# Abhängigkeiten installieren
-npm install
-cd frontend && npm install
-cd ../backend && npm install
+# Option A: direkt öffnen
+open index.html
 
-# Umgebungsvariablen konfigurieren
-cp backend/.env.example backend/.env
-# → .env mit eigenen Werten befüllen (DB, JWT Secret, E-Mail, ...)
-
-# Datenbank einrichten
-cd backend
-npx prisma migrate dev
-
-# Entwicklungsserver starten
-npm run dev       # Startet Frontend + Backend parallel
+# Option B: lokaler Server (empfohlen)
+python3 -m http.server 4173
+# dann im Browser öffnen: http://localhost:4173
 ```
 
-### Mit Docker
+### Deployment (statisch)
 
 ```bash
-docker-compose up
-# → App läuft auf http://localhost:5173
-# → API läuft auf http://localhost:3000
+# Beispiel: Build-Artefakte sind die statischen Dateien im Repo
+# (index.html + styles.css)
+# Diese können direkt auf Netlify, Vercel (Static), GitHub Pages oder einem beliebigen Webserver deployed werden.
 ```
 
 ---
