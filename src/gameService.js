@@ -12,6 +12,15 @@ class GameError extends Error {
   }
 }
 
+function getDb() {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    return require('./lib/prisma');
+  } catch {
+    return null;
+  }
+}
+
 function generateId() {
   return crypto.randomUUID();
 }
@@ -27,6 +36,36 @@ async function createGame({ hostUsername }) {
   const inviteLink = `${baseUrl}/join?token=${inviteToken}&game=${id}`;
 
   const qrCodeSvg = await QRCode.toString(inviteLink, { type: 'svg' });
+
+  const db = getDb();
+  if (db) {
+    const user = await db.user.findUnique({ where: { username: hostUsername } });
+    if (!user) {
+      throw new GameError(404, 'Host nicht gefunden.');
+    }
+
+    const game = await db.game.create({
+      data: {
+        id,
+        hostId: user.id,
+        inviteToken,
+        players: {
+          create: { userId: user.id }
+        }
+      },
+      include: { players: { include: { user: true } } }
+    });
+
+    return {
+      id: game.id,
+      host: hostUsername,
+      status: game.status,
+      players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+      inviteLink,
+      qrCodeSvg,
+      createdAt: game.createdAt.toISOString()
+    };
+  }
 
   const game = {
     id,
@@ -51,7 +90,33 @@ async function createGame({ hostUsername }) {
   };
 }
 
-function getGame(gameId, username) {
+async function getGame(gameId, username) {
+  const db = getDb();
+  if (db) {
+    const game = await db.game.findUnique({
+      where: { id: gameId },
+      include: { players: { include: { user: true } } }
+    });
+
+    if (!game) {
+      throw new GameError(404, 'Spielrunde nicht gefunden.');
+    }
+
+    const isPlayer = game.players.some(p => p.user.username === username);
+    if (!isPlayer) {
+      throw new GameError(403, 'Nur Teilnehmer können diese Runde einsehen.');
+    }
+
+    return {
+      id: game.id,
+      host: (await db.user.findUnique({ where: { id: game.hostId } })).username,
+      status: game.status,
+      players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+      inviteLink: `${process.env.BASE_URL || 'http://localhost:3000'}/join?token=${game.inviteToken}&game=${game.id}`,
+      createdAt: game.createdAt.toISOString()
+    };
+  }
+
   const game = games.get(gameId);
   if (!game) {
     throw new GameError(404, 'Spielrunde nicht gefunden.');
@@ -72,7 +137,56 @@ function getGame(gameId, username) {
   };
 }
 
-function joinGame({ gameId, inviteToken, username }) {
+async function joinGame({ gameId, inviteToken, username }) {
+  const db = getDb();
+  if (db) {
+    const game = await db.game.findUnique({
+      where: { id: gameId },
+      include: { players: { include: { user: true } } }
+    });
+
+    if (!game) {
+      throw new GameError(404, 'Spielrunde nicht gefunden.');
+    }
+
+    if (game.status !== 'LOBBY') {
+      throw new GameError(400, 'Spielrunde hat bereits begonnen.');
+    }
+
+    if (game.inviteToken !== inviteToken) {
+      throw new GameError(403, 'Ungültiger Einladungslink.');
+    }
+
+    if (game.players.some(p => p.user.username === username)) {
+      throw new GameError(409, 'Du bist bereits in dieser Runde.');
+    }
+
+    if (game.players.length >= MAX_PLAYERS) {
+      throw new GameError(400, `Maximale Spieleranzahl (${MAX_PLAYERS}) erreicht.`);
+    }
+
+    const user = await db.user.findUnique({ where: { username } });
+    if (!user) {
+      throw new GameError(404, 'Benutzer nicht gefunden.');
+    }
+
+    await db.gamePlayer.create({
+      data: { gameId, userId: user.id }
+    });
+
+    const updatedGame = await db.game.findUnique({
+      where: { id: gameId },
+      include: { players: { include: { user: true } } }
+    });
+
+    return {
+      id: updatedGame.id,
+      host: (await db.user.findUnique({ where: { id: updatedGame.hostId } })).username,
+      status: updatedGame.status,
+      players: updatedGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() }))
+    };
+  }
+
   const game = games.get(gameId);
   if (!game) {
     throw new GameError(404, 'Spielrunde nicht gefunden.');
@@ -106,6 +220,11 @@ function joinGame({ gameId, inviteToken, username }) {
 
 function resetGames() {
   games.clear();
+  const db = getDb();
+  if (db) {
+    db.gamePlayer.deleteMany().catch(() => {});
+    db.game.deleteMany().catch(() => {});
+  }
 }
 
 module.exports = {

@@ -103,7 +103,7 @@ function createApp(options = {}) {
 
   app.get('/api/games/:id', requireAuth, async (req, res, next) => {
     try {
-      const result = getGame(req.params.id, req.user.username);
+      const result = await getGame(req.params.id, req.user.username);
       res.status(200).json({ game: result });
     } catch (error) {
       next(error);
@@ -112,7 +112,7 @@ function createApp(options = {}) {
 
   app.post('/api/games/:id/join', requireAuth, async (req, res, next) => {
     try {
-      const result = joinGame({
+      const result = await joinGame({
         gameId: req.params.id,
         inviteToken: req.body.inviteToken,
         username: req.user.username
