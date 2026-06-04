@@ -199,6 +199,61 @@ async function startGame({ gameId, username }) {
   };
 }
 
+async function leaveGame({ gameId, username }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { host: true, players: { include: { user: true } } }
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'LOBBY') {
+    throw new GameError(400, 'Spiel läuft bereits – Austritt nicht möglich.');
+  }
+
+  if (!game.players.some(p => p.user.username === username)) {
+    throw new GameError(403, 'Du bist nicht in dieser Runde.');
+  }
+
+  const user = await db.user.findUnique({ where: { username } });
+  await db.gamePlayer.deleteMany({
+    where: { gameId, userId: user.id }
+  });
+
+  if (game.host.username === username) {
+    const remaining = await db.gamePlayer.findMany({
+      where: { gameId },
+      include: { user: true }
+    });
+
+    if (remaining.length > 0) {
+      await db.game.update({
+        where: { id: gameId },
+        data: { hostId: remaining[0].userId }
+      });
+    } else {
+      await db.game.delete({ where: { id: gameId } });
+      return { deleted: true };
+    }
+  }
+
+  const updatedGame = await db.game.findUnique({
+    where: { id: gameId },
+    include: { host: true, players: { include: { user: true } } }
+  });
+
+  return {
+    id: updatedGame.id,
+    host: updatedGame.host.username,
+    status: updatedGame.status,
+    players: updatedGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() }))
+  };
+}
+
 async function resetGames() {
   const db = getDb();
   try {
@@ -213,6 +268,7 @@ module.exports = {
   createGame,
   getGame,
   joinGame,
+  leaveGame,
   startGame,
   resetGames,
   MAX_PLAYERS,

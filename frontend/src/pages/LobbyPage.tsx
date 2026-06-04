@@ -112,6 +112,20 @@ export default function LobbyPage() {
     }
   }
 
+  async function handleLeaveGame() {
+    if (!token || !game) return;
+    setLoading(true);
+    setError('');
+    try {
+      await apiPost(`/api/games/${game.id}/leave`, undefined, token);
+      setGame(null);
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Austritt fehlgeschlagen.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleCopyLink() {
     if (!game) return;
     navigator.clipboard.writeText(game.inviteLink);
@@ -195,6 +209,16 @@ export default function LobbyPage() {
 
               {game.status === 'LOBBY' && (
                 <>
+                  {!isHost && (
+                    <button
+                      onClick={handleLeaveGame}
+                      disabled={loading}
+                      style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)', marginBottom: '1rem' }}
+                    >
+                      {loading ? 'Wird verlassen…' : 'Runde verlassen'}
+                    </button>
+                  )}
+
                   <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
                     <input
                       readOnly

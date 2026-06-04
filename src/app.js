@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, joinGame, startGame } = require('./gameService');
+const { GameError, createGame, getGame, joinGame, leaveGame, startGame } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -168,6 +168,21 @@ function createApp(options = {}) {
       res.status(200).json({
         message: 'Du bist der Runde beigetreten.',
         game: result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/leave', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await leaveGame({
+        gameId: req.params.id,
+        username: req.user.username
+      });
+      res.status(200).json({
+        message: 'Du hast die Runde verlassen.',
+        ...result
       });
     } catch (error) {
       next(error);
