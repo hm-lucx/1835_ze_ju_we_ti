@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { apiPost } from '../lib/api';
+import { apiPost, apiGet } from '../lib/api';
 
 interface Player {
   username: string;
@@ -65,9 +65,12 @@ const mutedStyle = {
   textAlign: 'center',
 } as const;
 
+const MIN_PLAYERS = 3;
+
 export default function LobbyPage() {
   const { token, user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -116,7 +119,35 @@ export default function LobbyPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const loadGame = useCallback(async (gameId: string) => {
+    if (!token) return;
+    try {
+      const data = await apiGet(`/api/games/${gameId}`, token);
+      if (data.game) {
+        setGame(prev => prev ? { ...prev, ...data.game } : data.game);
+      }
+    } catch {
+      // ignore poll errors
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const gameId = searchParams.get('game');
+    if (gameId) {
+      loadGame(gameId);
+    }
+  }, [searchParams, loadGame]);
+
+  useEffect(() => {
+    if (!game || game.status !== 'LOBBY') return;
+    const interval = setInterval(() => {
+      loadGame(game.id);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [game, loadGame]);
+
   const isHost = game && user && game.host === user.username;
+  const canStart = isHost && game && game.players.length >= MIN_PLAYERS;
 
   return (
     <div style={centerStyle}>
@@ -154,7 +185,7 @@ export default function LobbyPage() {
                 Status: <strong>{game.status}</strong>
               </p>
               <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
-                Spieler: {game.players.length}
+                Spieler: {game.players.length} / 7
               </p>
               <ul style={{ margin: '0.5rem 0', fontSize: '0.85rem', color: 'var(--color-muted)' }}>
                 {game.players.map(p => (
@@ -186,13 +217,24 @@ export default function LobbyPage() {
                   )}
 
                   {isHost && (
-                    <button
-                      onClick={handleStartGame}
-                      disabled={loading}
-                      style={{ ...buttonStyle, opacity: loading ? 0.5 : 1 }}
-                    >
-                      {loading ? 'Wird gestartet…' : 'Spiel starten'}
-                    </button>
+                    <>
+                      <button
+                        onClick={handleStartGame}
+                        disabled={!canStart || loading}
+                        style={{
+                          ...buttonStyle,
+                          opacity: loading ? 0.5 : canStart ? 1 : 0.4,
+                          cursor: canStart && !loading ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        {loading ? 'Wird gestartet…' : 'Spiel starten'}
+                      </button>
+                      {!canStart && !loading && (
+                        <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                          Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
+                        </p>
+                      )}
+                    </>
                   )}
                 </>
               )}

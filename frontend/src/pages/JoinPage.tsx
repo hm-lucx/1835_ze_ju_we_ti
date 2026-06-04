@@ -44,6 +44,7 @@ export default function JoinPage() {
       if (data.message && data.game) {
         setStatus('success');
         setMessage(data.message);
+        setTimeout(() => navigate(`/lobby?game=${gameId}`), 1500);
       } else {
         setStatus('error');
         setMessage(data.message || 'Beitritt fehlgeschlagen.');
@@ -52,7 +53,7 @@ export default function JoinPage() {
       setStatus('error');
       setMessage(err.message || 'Beitritt fehlgeschlagen.');
     });
-  }, [token, searchParams]);
+  }, [token, searchParams, navigate]);
 
   return (
     <div style={centerStyle}>
@@ -61,12 +62,9 @@ export default function JoinPage() {
         {status === 'success' && (
           <>
             <p style={{ color: 'var(--color-accent)', fontWeight: 600 }}>{message}</p>
-            <button
-              onClick={() => navigate('/lobby')}
-              style={{ marginTop: '1rem', padding: '0.75rem 2rem', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, color: '#1a1410', backgroundColor: 'var(--color-accent)', border: 'none', cursor: 'pointer' }}
-            >
-              Zur Lobby
-            </button>
+            <p style={{ color: 'var(--color-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              Weiterleitung zur Lobby…
+            </p>
           </>
         )}
         {status === 'error' && (

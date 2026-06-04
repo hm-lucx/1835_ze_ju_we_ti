@@ -346,6 +346,29 @@ function getResetTokenForUser(username) {
   return null;
 }
 
+async function createTestUser(username, email, password, birthDateStr) {
+  const passwordHash = await bcrypt.hash(password, 12);
+  const db = getDb();
+  if (db) {
+    const existing = await db.user.findUnique({ where: { username } });
+    if (existing) {
+      throw new AuthError(409, 'Benutzername ist bereits vergeben.');
+    }
+    const parsed = parseBirthDate(birthDateStr);
+    await db.user.create({
+      data: { username, email, passwordHash, birthdate: parsed }
+    });
+    return createToken(username);
+  }
+
+  if (users.has(username)) {
+    throw new AuthError(409, 'Benutzername ist bereits vergeben.');
+  }
+  const date = parseBirthDate(birthDateStr);
+  users.set(username, { username, email, birthDate: date.toISOString(), passwordHash });
+  return createToken(username);
+}
+
 module.exports = {
   AuthError,
   register,
@@ -357,5 +380,6 @@ module.exports = {
   isAtLeast16,
   verifyToken,
   requireAuth,
-  getResetTokenForUser
+  getResetTokenForUser,
+  createTestUser
 };

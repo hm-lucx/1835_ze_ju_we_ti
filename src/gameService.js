@@ -1,9 +1,12 @@
 const crypto = require('node:crypto');
 const QRCode = require('qrcode');
 const { getDb } = require('./lib/db');
+const { isAtLeast16, getStoredUser } = require('./authService');
 
 const games = new Map();
 const MAX_PLAYERS = 7;
+const MIN_PLAYERS = 3;
+const STARTING_CAPITAL = 1000;
 
 class GameError extends Error {
   constructor(statusCode, message) {
@@ -66,6 +69,7 @@ async function createGame({ hostUsername }) {
     players: [{ username: hostUsername, joinedAt: new Date().toISOString() }],
     inviteToken,
     inviteLink,
+    qrCodeSvg,
     createdAt: new Date().toISOString()
   };
 
@@ -77,7 +81,7 @@ async function createGame({ hostUsername }) {
     status: game.status,
     players: game.players,
     inviteLink: game.inviteLink,
-    qrCodeSvg,
+    qrCodeSvg: game.qrCodeSvg,
     createdAt: game.createdAt
   };
 }
@@ -99,12 +103,16 @@ async function getGame(gameId, username) {
       throw new GameError(403, 'Nur Teilnehmer können diese Runde einsehen.');
     }
 
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`;
+    const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLink, { type: 'svg' });
+
     return {
       id: game.id,
       host: game.host.username,
       status: game.status,
       players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
-      inviteLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`,
+      inviteLink,
+      qrCodeSvg,
       createdAt: game.createdAt.toISOString()
     };
   }
@@ -125,6 +133,7 @@ async function getGame(gameId, username) {
     status: game.status,
     players: game.players,
     inviteLink: game.inviteLink,
+    qrCodeSvg: game.qrCodeSvg,
     createdAt: game.createdAt
   };
 }
@@ -142,7 +151,7 @@ async function joinGame({ gameId, inviteToken, username }) {
     }
 
     if (game.status !== 'LOBBY') {
-      throw new GameError(400, 'Spielrunde hat bereits begonnen.');
+      throw new GameError(400, 'Diese Runde hat bereits begonnen.');
     }
 
     if (game.inviteToken !== inviteToken) {
@@ -154,12 +163,16 @@ async function joinGame({ gameId, inviteToken, username }) {
     }
 
     if (game.players.length >= MAX_PLAYERS) {
-      throw new GameError(400, `Maximale Spieleranzahl (${MAX_PLAYERS}) erreicht.`);
+      throw new GameError(409, 'Diese Runde ist bereits voll.');
     }
 
     const user = await db.user.findUnique({ where: { username } });
     if (!user) {
       throw new GameError(404, 'Benutzer nicht gefunden.');
+    }
+
+    if (!isAtLeast16(user.birthdate)) {
+      throw new GameError(403, 'Mindestalter nicht erfüllt.');
     }
 
     await db.gamePlayer.create({
@@ -185,7 +198,7 @@ async function joinGame({ gameId, inviteToken, username }) {
   }
 
   if (game.status !== 'LOBBY') {
-    throw new GameError(400, 'Spielrunde hat bereits begonnen.');
+    throw new GameError(400, 'Diese Runde hat bereits begonnen.');
   }
 
   if (game.inviteToken !== inviteToken) {
@@ -197,7 +210,16 @@ async function joinGame({ gameId, inviteToken, username }) {
   }
 
   if (game.players.length >= MAX_PLAYERS) {
-    throw new GameError(400, `Maximale Spieleranzahl (${MAX_PLAYERS}) erreicht.`);
+    throw new GameError(409, 'Diese Runde ist bereits voll.');
+  }
+
+  const storedUser = await getStoredUser(username);
+  if (!storedUser) {
+    throw new GameError(404, 'Benutzer nicht gefunden.');
+  }
+
+  if (!isAtLeast16(new Date(storedUser.birthDate))) {
+    throw new GameError(403, 'Mindestalter nicht erfüllt.');
   }
 
   game.players.push({ username, joinedAt: new Date().toISOString() });
@@ -230,6 +252,10 @@ async function startGame({ gameId, username }) {
       throw new GameError(400, 'Spielrunde hat bereits begonnen.');
     }
 
+    if (game.players.length < MIN_PLAYERS) {
+      throw new GameError(400, `Mindestens ${MIN_PLAYERS} Spieler erforderlich, um zu starten.`);
+    }
+
     const now = new Date();
     const updated = await db.game.update({
       where: { id: gameId },
@@ -237,12 +263,33 @@ async function startGame({ gameId, username }) {
       include: { players: { include: { user: true } } }
     });
 
+    const playerIds = game.players.map(p => p.userId);
+
+    await db.gameState.create({
+      data: {
+        gameId,
+        phase: 'STOCK_ROUND',
+        currentRound: 1,
+        stateJson: { playerOrder: playerIds, currentPlayerIndex: 0 }
+      }
+    });
+
+    await db.playerAccount.createMany({
+      data: playerIds.map(userId => ({ gameId, userId, balance: STARTING_CAPITAL }))
+    });
+
+    const finalGame = await db.game.findUnique({
+      where: { id: gameId },
+      include: { players: { include: { user: true } }, playerAccounts: true }
+    });
+
     return {
-      id: updated.id,
+      id: finalGame.id,
       host: username,
-      status: updated.status,
-      players: updated.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
-      startedAt: updated.startedAt.toISOString()
+      status: finalGame.status,
+      players: finalGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+      startedAt: finalGame.startedAt.toISOString(),
+      accounts: finalGame.playerAccounts.map(a => ({ userId: a.userId, balance: a.balance }))
     };
   }
 
@@ -259,15 +306,22 @@ async function startGame({ gameId, username }) {
     throw new GameError(400, 'Spielrunde hat bereits begonnen.');
   }
 
+  if (game.players.length < MIN_PLAYERS) {
+    throw new GameError(400, `Mindestens ${MIN_PLAYERS} Spieler erforderlich, um zu starten.`);
+  }
+
   game.status = 'RUNNING';
   game.startedAt = new Date().toISOString();
+  game.gameState = { phase: 'STOCK_ROUND', currentRound: 1, stateJson: { playerOrder: game.players.map(p => p.username), currentPlayerIndex: 0 } };
+  game.accounts = game.players.map(p => ({ username: p.username, balance: STARTING_CAPITAL }));
 
   return {
     id: game.id,
     host: game.host,
     status: game.status,
     players: game.players,
-    startedAt: game.startedAt
+    startedAt: game.startedAt,
+    accounts: game.accounts
   };
 }
 
@@ -291,5 +345,7 @@ module.exports = {
   joinGame,
   startGame,
   resetGames,
-  MAX_PLAYERS
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  STARTING_CAPITAL
 };
