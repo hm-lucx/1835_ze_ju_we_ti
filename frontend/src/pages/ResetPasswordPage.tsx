@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
+import { useState, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import AuthCard from '../components/auth/AuthCard';
 import AuthInput from '../components/auth/AuthInput';
 import AuthButton from '../components/auth/AuthButton';
+import AuthLink from '../components/auth/AuthLink';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -21,28 +22,22 @@ export default function ResetPasswordPage() {
           Ungültiger oder fehlender Reset-Token.
         </p>
         <div style={{ textAlign: 'center' }}>
-          <Link to="/forgot-password" style={{ color: 'var(--color-accent)' }}>
-            Passwort-Reset erneut anfordern
-          </Link>
+          <AuthLink to="/forgot-password">Passwort-Reset erneut anfordern</AuthLink>
         </div>
       </AuthCard>
     );
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  const handleSubmit = useCallback(async () => {
     setError('');
-
     if (newPassword.length < 8) {
       setError('Das Passwort muss mindestens 8 Zeichen lang sein.');
       return;
     }
-
     if (newPassword !== newPasswordConfirm) {
       setError('Passwörter stimmen nicht überein.');
       return;
     }
-
     try {
       await resetPassword(tokenParam!, newPassword, newPasswordConfirm);
       navigate('/login?reset=success', { replace: true });
@@ -50,11 +45,11 @@ export default function ResetPasswordPage() {
       const apiErr = err as { message?: string };
       setError(apiErr.message || 'Fehler beim Zurücksetzen.');
     }
-  }
+  }, [newPassword, newPasswordConfirm, tokenParam, resetPassword, navigate]);
 
   return (
     <AuthCard title="Passwort zurücksetzen" subtitle="Wähle ein neues Passwort">
-      <form onSubmit={handleSubmit}>
+      <div>
         <AuthInput
           label="Neues Passwort"
           type="password"
@@ -74,10 +69,10 @@ export default function ResetPasswordPage() {
             {error}
           </p>
         )}
-        <AuthButton type="submit" loading={loading}>
+        <AuthButton onClick={handleSubmit} loading={loading}>
           Passwort zurücksetzen
         </AuthButton>
-      </form>
+      </div>
     </AuthCard>
   );
 }

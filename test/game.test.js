@@ -194,6 +194,72 @@ test('Doppelter Beitritt wird abgewiesen', async () => {
   assert.equal(secondJoinRes.body.message, 'Du bist bereits in dieser Runde.');
 });
 
+test('Spiel starten als Host funktioniert', async () => {
+  const token = await registerAndGetToken(app, 'hostStart');
+
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(token));
+
+  const gameId = createRes.body.game.id;
+
+  const startRes = await request(app)
+    .post(`/api/games/${gameId}/start`)
+    .set(asUser(token));
+
+  assert.equal(startRes.status, 200);
+  assert.equal(startRes.body.message, 'Spiel gestartet.');
+  assert.equal(startRes.body.game.status, 'RUNNING');
+  assert.ok(startRes.body.game.startedAt);
+});
+
+test('Spiel starten ohne Auth wird abgewiesen', async () => {
+  const response = await request(app)
+    .post('/api/games/irgendeine-id/start');
+
+  assert.equal(response.status, 401);
+});
+
+test('Spiel starten als Nicht-Host wird abgewiesen', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostStart2');
+  const guestToken = await registerAndGetToken(app, 'guestStart');
+
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+
+  const gameId = createRes.body.game.id;
+
+  const startRes = await request(app)
+    .post(`/api/games/${gameId}/start`)
+    .set(asUser(guestToken));
+
+  assert.equal(startRes.status, 403);
+  assert.equal(startRes.body.message, 'Nur der Host kann das Spiel starten.');
+});
+
+test('Spiel starten doppelt wird abgewiesen', async () => {
+  const token = await registerAndGetToken(app, 'hostStart3');
+
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(token));
+
+  const gameId = createRes.body.game.id;
+
+  await request(app)
+    .post(`/api/games/${gameId}/start`)
+    .set(asUser(token))
+    .expect(200);
+
+  const secondStartRes = await request(app)
+    .post(`/api/games/${gameId}/start`)
+    .set(asUser(token));
+
+  assert.equal(secondStartRes.status, 400);
+  assert.equal(secondStartRes.body.message, 'Spielrunde hat bereits begonnen.');
+});
+
 test('Maximale Spieleranzahl von 7 wird durchgesetzt', async () => {
   const hostToken = await registerAndGetToken(app, 'host8');
 

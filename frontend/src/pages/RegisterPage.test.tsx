@@ -6,8 +6,8 @@ import RegisterPage from './RegisterPage';
 
 const mockRegister = vi.fn();
 
-vi.mock('../hooks/useAuth', () => ({
-  default: () => ({
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
     user: null,
     token: null,
     isAuthenticated: false,
@@ -18,6 +18,7 @@ vi.mock('../hooks/useAuth', () => ({
     resetPassword: vi.fn(),
     logout: vi.fn(),
   }),
+  AuthProvider: ({ children }: any) => children,
 }));
 
 function renderPage() {

@@ -1,12 +1,15 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
+const { getDb } = require('./lib/db');
 
 const users = new Map();
 const resetTokens = new Map();
 const fallbackJwtSecret = crypto.randomBytes(32).toString('hex');
 
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
+const PASSWORD_MIN_LENGTH = 8;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 class AuthError extends Error {
   constructor(statusCode, message) {
@@ -23,15 +26,6 @@ function getJwtSecret() {
     throw new Error('JWT_SECRET muss in Produktion gesetzt sein.');
   }
   return fallbackJwtSecret;
-}
-
-function getDb() {
-  if (!process.env.DATABASE_URL) return null;
-  try {
-    return require('./lib/prisma');
-  } catch {
-    return null;
-  }
 }
 
 function parseBirthDate(birthDate) {
@@ -82,13 +76,21 @@ async function register({ username, email, password, passwordConfirm, birthDate 
   const normalizedUsername = username.trim();
   const normalizedEmail = email.trim();
 
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
+    throw new AuthError(400, 'Ungültige E-Mail-Adresse.');
+  }
+
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new AuthError(400, `Passwort muss mindestens ${PASSWORD_MIN_LENGTH} Zeichen lang sein.`);
+  }
+
   if (password !== passwordConfirm) {
     throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
   }
 
   const parsedBirthDate = parseBirthDate(birthDate);
   if (!isAtLeast16(parsedBirthDate)) {
-    throw new AuthError(403, 'Registrierung erst ab 16 Jahren möglich.');
+    throw new AuthError(400, 'Registrierung erst ab 16 Jahren möglich.');
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -198,7 +200,7 @@ async function forgotPassword({ username }) {
       }
     });
 
-    return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.', token };
+    return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
   }
 
   const user = users.get(normalizedUsername);
@@ -215,7 +217,7 @@ async function forgotPassword({ username }) {
     used: false
   });
 
-  return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.', token };
+  return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
 }
 
 async function resetPassword({ token, newPassword, newPasswordConfirm }) {
@@ -317,7 +319,7 @@ function verifyToken(token) {
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authentifizierung erforderlich.' });
+    return next(new AuthError(401, 'Authentifizierung erforderlich.'));
   }
 
   try {
@@ -325,10 +327,23 @@ function requireAuth(req, res, next) {
     next();
   } catch (error) {
     if (error instanceof AuthError) {
-      return res.status(error.statusCode).json({ message: error.message });
+      return next(error);
     }
-    return res.status(401).json({ message: 'Authentifizierung fehlgeschlagen.' });
+    return next(new AuthError(401, 'Authentifizierung fehlgeschlagen.'));
   }
+}
+
+function getResetTokenForUser(username) {
+  const db = getDb();
+  if (db) {
+    return null;
+  }
+  for (const [token, data] of resetTokens) {
+    if (data.username === username && !data.used && Date.now() <= data.expiresAt.getTime()) {
+      return token;
+    }
+  }
+  return null;
 }
 
 module.exports = {
@@ -341,5 +356,6 @@ module.exports = {
   getStoredUser,
   isAtLeast16,
   verifyToken,
-  requireAuth
+  requireAuth,
+  getResetTokenForUser
 };

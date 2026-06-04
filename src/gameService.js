@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const QRCode = require('qrcode');
+const { getDb } = require('./lib/db');
 
 const games = new Map();
 const MAX_PLAYERS = 7;
@@ -9,15 +10,6 @@ class GameError extends Error {
     super(message);
     this.name = 'GameError';
     this.statusCode = statusCode;
-  }
-}
-
-function getDb() {
-  if (!process.env.DATABASE_URL) return null;
-  try {
-    return require('./lib/prisma');
-  } catch {
-    return null;
   }
 }
 
@@ -95,7 +87,7 @@ async function getGame(gameId, username) {
   if (db) {
     const game = await db.game.findUnique({
       where: { id: gameId },
-      include: { players: { include: { user: true } } }
+      include: { host: true, players: { include: { user: true } } }
     });
 
     if (!game) {
@@ -109,7 +101,7 @@ async function getGame(gameId, username) {
 
     return {
       id: game.id,
-      host: (await db.user.findUnique({ where: { id: game.hostId } })).username,
+      host: game.host.username,
       status: game.status,
       players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
       inviteLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`,
@@ -176,12 +168,12 @@ async function joinGame({ gameId, inviteToken, username }) {
 
     const updatedGame = await db.game.findUnique({
       where: { id: gameId },
-      include: { players: { include: { user: true } } }
+      include: { host: true, players: { include: { user: true } } }
     });
 
     return {
       id: updatedGame.id,
-      host: (await db.user.findUnique({ where: { id: updatedGame.hostId } })).username,
+      host: updatedGame.host.username,
       status: updatedGame.status,
       players: updatedGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() }))
     };
@@ -223,14 +215,14 @@ async function startGame({ gameId, username }) {
   if (db) {
     const game = await db.game.findUnique({
       where: { id: gameId },
-      include: { players: { include: { user: true } } }
+      include: { host: true, players: { include: { user: true } } }
     });
 
     if (!game) {
       throw new GameError(404, 'Spielrunde nicht gefunden.');
     }
 
-    if (game.hostId !== (await db.user.findUnique({ where: { username } })).id) {
+    if (game.host.username !== username) {
       throw new GameError(403, 'Nur der Host kann das Spiel starten.');
     }
 

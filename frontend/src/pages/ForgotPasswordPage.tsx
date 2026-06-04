@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import useAuth from '../hooks/useAuth';
+import { useState, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import AuthCard from '../components/auth/AuthCard';
 import AuthInput from '../components/auth/AuthInput';
 import AuthButton from '../components/auth/AuthButton';
@@ -11,15 +11,12 @@ export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  const handleSubmit = useCallback(async () => {
     setError('');
-
     if (!username.trim()) {
       setError('Bitte gib deinen Benutzernamen ein.');
       return;
     }
-
     try {
       await forgotPassword(username);
       setSubmitted(true);
@@ -27,7 +24,7 @@ export default function ForgotPasswordPage() {
       const apiErr = err as { message?: string };
       setError(apiErr.message || 'Fehler beim Senden.');
     }
-  }
+  }, [username, forgotPassword]);
 
   if (submitted) {
     return (
@@ -44,7 +41,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthCard title="Passwort vergessen" subtitle="Gib deinen Benutzernamen ein">
-      <form onSubmit={handleSubmit}>
+      <div>
         <AuthInput
           label="Benutzername"
           type="text"
@@ -57,10 +54,10 @@ export default function ForgotPasswordPage() {
             {error}
           </p>
         )}
-        <AuthButton type="submit" loading={loading}>
+        <AuthButton onClick={handleSubmit} loading={loading}>
           Senden
         </AuthButton>
-      </form>
+      </div>
       <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
         <AuthLink to="/login">Zurück zum Login</AuthLink>
       </div>

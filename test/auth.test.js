@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 
 const { createApp } = require('../src/app');
-const { resetUsers, getStoredUser } = require('../src/authService');
+const { resetUsers, getStoredUser, getResetTokenForUser } = require('../src/authService');
 
 let app;
 
@@ -44,7 +44,7 @@ test('Registrierung lehnt Minderjährige ab', async () => {
       birthDate: '2015-01-01'
     });
 
-  assert.equal(response.status, 403);
+  assert.equal(response.status, 400);
   assert.equal(response.body.message, 'Registrierung erst ab 16 Jahren möglich.');
 });
 
@@ -138,7 +138,7 @@ test('Passwort-Reset: Forgot-Password erzeugt Token für existierenden Nutzer', 
 
   assert.equal(response.status, 200);
   assert.equal(response.body.message, 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.');
-  assert.ok(response.body.token);
+  assert.equal(response.body.token, undefined, 'Token darf nicht im Response stehen');
 });
 
 test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
@@ -153,11 +153,11 @@ test('Passwort-Reset: Reset mit gültigem Token funktioniert', async () => {
     })
     .expect(201);
 
-  const forgotResponse = await request(app)
+  await request(app)
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser2' });
 
-  const token = forgotResponse.body.token;
+  const token = getResetTokenForUser('resetUser2');
 
   const resetResponse = await request(app)
     .post('/api/auth/reset-password')
@@ -183,11 +183,11 @@ test('Passwort-Reset: Kann sich nach Reset mit neuem Passwort anmelden', async (
     })
     .expect(201);
 
-  const forgotResponse = await request(app)
+  await request(app)
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser3' });
 
-  const token = forgotResponse.body.token;
+  const token = getResetTokenForUser('resetUser3');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -218,11 +218,11 @@ test('Passwort-Reset: Altes Passwort funktioniert nicht mehr nach Reset', async 
     })
     .expect(201);
 
-  const forgotResponse = await request(app)
+  await request(app)
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser4' });
 
-  const token = forgotResponse.body.token;
+  const token = getResetTokenForUser('resetUser4');
 
   await request(app)
     .post('/api/auth/reset-password')
@@ -252,11 +252,11 @@ test('Passwort-Reset: Token ist nur einmal verwendbar', async () => {
     })
     .expect(201);
 
-  const forgotResponse = await request(app)
+  await request(app)
     .post('/api/auth/forgot-password')
     .send({ username: 'resetUser5' });
 
-  const token = forgotResponse.body.token;
+  const token = getResetTokenForUser('resetUser5');
 
   await request(app)
     .post('/api/auth/reset-password')

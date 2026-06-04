@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { useAuth } from '../contexts/AuthContext';
+import { apiPost } from '../lib/api';
 
 interface Player {
   username: string;
@@ -18,20 +17,6 @@ interface Game {
   qrCodeSvg?: string;
   startedAt?: string;
   createdAt: string;
-}
-
-function apiGet(path: string, token: string) {
-  return fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then(r => r.json());
-}
-
-function apiPost(path: string, token: string, body?: unknown) {
-  return fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: body ? JSON.stringify(body) : undefined,
-  }).then(r => r.json());
 }
 
 const centerStyle = {
@@ -93,14 +78,14 @@ export default function LobbyPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost('/api/games', token);
+      const data = await apiPost('/api/games', undefined, token);
       if (data.game) {
         setGame(data.game);
       } else {
         setError(data.message || 'Fehler beim Erstellen der Runde.');
       }
-    } catch {
-      setError('Fehler beim Erstellen der Runde.');
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Fehler beim Erstellen der Runde.');
     } finally {
       setLoading(false);
     }
@@ -111,14 +96,14 @@ export default function LobbyPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost(`/api/games/${game.id}/start`, token);
+      const data = await apiPost(`/api/games/${game.id}/start`, undefined, token);
       if (data.game) {
         setGame(prev => prev ? { ...prev, status: data.game.status, startedAt: data.game.startedAt } : null);
       } else {
         setError(data.message || 'Fehler beim Starten.');
       }
-    } catch {
-      setError('Fehler beim Starten des Spiels.');
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Fehler beim Starten des Spiels.');
     } finally {
       setLoading(false);
     }
@@ -191,10 +176,13 @@ export default function LobbyPage() {
                   </div>
 
                   {game.qrCodeSvg && (
-                    <div
-                      style={{ marginTop: '1rem', textAlign: 'center' }}
-                      dangerouslySetInnerHTML={{ __html: game.qrCodeSvg }}
-                    />
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                      <img
+                        src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
+                        alt="QR-Code zum Beitreten"
+                        style={{ width: 160, height: 160 }}
+                      />
+                    </div>
                   )}
 
                   {isHost && (

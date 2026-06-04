@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll, type Mock } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import useAuth from './useAuth';
+import { useAuth, AuthProvider } from '../contexts/AuthContext';
+import type { ReactNode } from 'react';
 
 const TOKEN_KEY = 'auth_token';
 const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0dXNlciJ9.test';
@@ -17,11 +18,17 @@ const fakeLocalStorage = {
 };
 
 function mockFetchOnce(status: number, body: unknown) {
-  return vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+  return (globalThis.fetch as Mock).mockResolvedValueOnce({
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
   } as Response);
+}
+
+function renderAuthHook() {
+  return renderHook(() => useAuth(), {
+    wrapper: ({ children }: { children: ReactNode }) => <AuthProvider>{children}</AuthProvider>,
+  });
 }
 
 beforeEach(() => {
@@ -38,7 +45,7 @@ describe('useAuth', () => {
   it('login() speichert Token bei Erfolg in localStorage', async () => {
     mockFetchOnce(200, { token: mockToken, user: { username: 'testuser', birthDate: '2000-01-01' } });
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderAuthHook();
 
     await act(async () => {
       await result.current.login('testuser', 'password');
@@ -51,7 +58,7 @@ describe('useAuth', () => {
   it('login() wirft Fehler bei falschen Credentials', async () => {
     mockFetchOnce(401, { message: 'Ungültiger Benutzername oder Passwort.' });
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderAuthHook();
 
     await act(async () => {
       await expect(result.current.login('testuser', 'wrong')).rejects.toEqual({
@@ -64,7 +71,7 @@ describe('useAuth', () => {
   it('logout() entfernt Token aus localStorage', async () => {
     globalThis.localStorage.setItem(TOKEN_KEY, mockToken);
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderAuthHook();
 
     act(() => {
       result.current.logout();
@@ -77,7 +84,7 @@ describe('useAuth', () => {
   it('isAuthenticated aus gespeichertem Token', async () => {
     globalThis.localStorage.setItem(TOKEN_KEY, mockToken);
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderAuthHook();
 
     expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.user?.username).toBe('testuser');

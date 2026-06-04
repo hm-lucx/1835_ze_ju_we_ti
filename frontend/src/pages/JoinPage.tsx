@@ -1,17 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
-
-async function apiPost(path: string, token: string, body: unknown) {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  return res.json();
-}
+import { useAuth } from '../contexts/AuthContext';
+import { apiPost } from '../lib/api';
 
 const centerStyle = {
   display: 'flex',
@@ -50,7 +40,7 @@ export default function JoinPage() {
       return;
     }
 
-    apiPost(`/api/games/${gameId}/join`, token, { inviteToken }).then(data => {
+    apiPost(`/api/games/${gameId}/join`, { inviteToken }, token).then(data => {
       if (data.message && data.game) {
         setStatus('success');
         setMessage(data.message);
@@ -58,9 +48,9 @@ export default function JoinPage() {
         setStatus('error');
         setMessage(data.message || 'Beitritt fehlgeschlagen.');
       }
-    }).catch(() => {
+    }).catch((err: { message?: string }) => {
       setStatus('error');
-      setMessage('Beitritt fehlgeschlagen.');
+      setMessage(err.message || 'Beitritt fehlgeschlagen.');
     });
   }, [token, searchParams]);
 

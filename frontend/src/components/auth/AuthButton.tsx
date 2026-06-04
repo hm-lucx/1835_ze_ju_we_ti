@@ -30,18 +30,11 @@ export default function AuthButton({ loading, disabled, children, style, ...butt
     <button
       {...buttonProps}
       disabled={disabled || loading}
+      className="auth-button"
       style={{
         ...buttonStyle,
         ...(disabled || loading ? disabledStyle : {}),
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled && !loading) {
-          (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
       }}
     >
       {loading ? 'Wird gesendet…' : children}
