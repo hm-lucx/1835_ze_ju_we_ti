@@ -149,8 +149,16 @@ export default function LobbyPage() {
     const gameId = searchParams.get('game');
     if (gameId) {
       loadGame(gameId);
+      return;
     }
-  }, [searchParams, loadGame]);
+    if (!token) return;
+    apiGet('/api/games/mine', token).then((res) => {
+      const games = (res as { games: { id: string }[] }).games;
+      if (games.length === 1 && games[0]) {
+        navigate(`/lobby?game=${games[0].id}`, { replace: true });
+      }
+    }).catch(() => {});
+  }, [searchParams, loadGame, token, navigate]);
 
   useEffect(() => {
     if (!game || game.status !== 'LOBBY') return;

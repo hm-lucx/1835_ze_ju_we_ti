@@ -50,6 +50,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockApiGet.mockResolvedValue({ games: [] });
 });
 
 describe('LobbyPage', () => {

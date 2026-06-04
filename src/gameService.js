@@ -199,6 +199,30 @@ async function startGame({ gameId, username }) {
   };
 }
 
+async function getMyGames(username) {
+  const db = getDb();
+  const user = await db.user.findUnique({ where: { username } });
+  if (!user) return { games: [] };
+
+  const gamePlayers = await db.gamePlayer.findMany({
+    where: { userId: user.id },
+    include: { game: { include: { host: true } } }
+  });
+
+  const games = gamePlayers
+    .filter(gp => gp.game.status === 'LOBBY' || gp.game.status === 'RUNNING')
+    .map(gp => ({
+      id: gp.game.id,
+      host: gp.game.host.username,
+      status: gp.game.status,
+      createdAt: gp.game.createdAt.toISOString(),
+      startedAt: gp.game.startedAt ? gp.game.startedAt.toISOString() : null,
+    }))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return { games };
+}
+
 async function leaveGame({ gameId, username }) {
   const db = getDb();
 
@@ -267,6 +291,7 @@ module.exports = {
   GameError,
   createGame,
   getGame,
+  getMyGames,
   joinGame,
   leaveGame,
   startGame,
