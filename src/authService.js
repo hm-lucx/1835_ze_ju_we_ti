@@ -3,7 +3,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
 
 const users = new Map();
+const resetTokens = new Map();
 const fallbackJwtSecret = crypto.randomBytes(32).toString('hex');
+
+const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 class AuthError extends Error {
   constructor(statusCode, message) {
@@ -132,8 +135,68 @@ async function login({ username, password }) {
   };
 }
 
+async function forgotPassword({ username }) {
+  assertRequiredString(username, 'Benutzername');
+
+  const normalizedUsername = username.trim();
+  const user = users.get(normalizedUsername);
+
+  // Don't reveal whether the user exists
+  if (!user) {
+    return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.' };
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+
+  resetTokens.set(token, {
+    username: normalizedUsername,
+    expiresAt,
+    used: false
+  });
+
+  return { message: 'Wenn der Benutzer existiert, wurde ein Reset-Token erstellt.', token };
+}
+
+async function resetPassword({ token, newPassword, newPasswordConfirm }) {
+  assertRequiredString(token, 'Token');
+  assertRequiredString(newPassword, 'Passwort');
+  assertRequiredString(newPasswordConfirm, 'Passwortbestätigung');
+
+  if (newPassword !== newPasswordConfirm) {
+    throw new AuthError(400, 'Passwort und Passwortbestätigung stimmen nicht überein.');
+  }
+
+  const storedToken = resetTokens.get(token);
+
+  if (!storedToken) {
+    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+  }
+
+  if (storedToken.used) {
+    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+  }
+
+  if (Date.now() > storedToken.expiresAt.getTime()) {
+    resetTokens.delete(token);
+    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+  }
+
+  const user = users.get(storedToken.username);
+  if (!user) {
+    resetTokens.delete(token);
+    throw new AuthError(400, 'Ungültiger oder abgelaufener Reset-Token.');
+  }
+
+  storedToken.used = true;
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+
+  return { message: 'Passwort erfolgreich zurückgesetzt.' };
+}
+
 function resetUsers() {
   users.clear();
+  resetTokens.clear();
 }
 
 function getStoredUser(username) {
@@ -144,6 +207,8 @@ module.exports = {
   AuthError,
   register,
   login,
+  forgotPassword,
+  resetPassword,
   resetUsers,
   getStoredUser,
   isAtLeast16
