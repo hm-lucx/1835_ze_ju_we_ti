@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, getTransactions } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, getTransactions } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -226,6 +226,21 @@ function createApp(options = {}) {
       });
       res.status(200).json({
         message: 'Geld von Bank empfangen.',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/pause', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await pauseGame({
+        gameId: req.params.id,
+        username: req.user.username,
+      });
+      res.status(200).json({
+        message: 'Spiel pausiert.',
         ...result,
       });
     } catch (error) {

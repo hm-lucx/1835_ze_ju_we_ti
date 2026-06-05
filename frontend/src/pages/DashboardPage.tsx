@@ -132,6 +132,7 @@ export default function DashboardPage() {
   const [receiveMemo, setReceiveMemo] = useState('');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [pauseLoading, setPauseLoading] = useState(false);
 
   async function handleTransfer() {
     if (!token || !id || !myAccount) return;
@@ -182,6 +183,20 @@ export default function DashboardPage() {
     } finally {
       setReceiveLoading(false);
       loadTransactions();
+    }
+  }
+
+  async function handlePause() {
+    if (!token || !id) return;
+    if (!window.confirm('Spiel wirklich pausieren? Spieler können dann keine Transaktionen mehr durchführen.')) return;
+    setPauseLoading(true);
+    try {
+      const data = await apiPost(`/api/games/${id}/pause`, {}, token) as { status: string };
+      setGame(prev => prev ? { ...prev, status: data.status } : null);
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Pausieren fehlgeschlagen.');
+    } finally {
+      setPauseLoading(false);
     }
   }
 
@@ -284,6 +299,12 @@ export default function DashboardPage() {
           </p>
         )}
 
+        {game.status === 'PAUSED' && (
+          <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-error)', fontWeight: 600 }}>
+            ⚠️ Spiel pausiert
+          </p>
+        )}
+
         {myAccount && (
           <div style={balanceCardStyle}>
             <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Dein Kontostand</p>
@@ -296,6 +317,23 @@ export default function DashboardPage() {
             <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)' }}>Bank</p>
             <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} Mark</p>
           </div>
+        )}
+
+        {game.status === 'RUNNING' && (
+          <button
+            onClick={handlePause}
+            disabled={pauseLoading}
+            style={{
+              ...buttonStyle,
+              backgroundColor: '#b33a2e',
+              color: '#fff',
+              marginBottom: '1rem',
+              opacity: pauseLoading ? 0.5 : 1,
+              cursor: pauseLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {pauseLoading ? 'Wird pausiert…' : 'Spiel pausieren'}
+          </button>
         )}
 
         <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
@@ -322,146 +360,154 @@ export default function DashboardPage() {
           </tbody>
         </table>
 
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
-          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld senden</p>
+        {game.status === 'RUNNING' ? (
+          <>
+            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+              <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld senden</p>
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <input
-              type="number"
-              min={1}
-              max={myAccount?.balance || 0}
-              value={transferAmount}
-              onChange={e => { setTransferAmount(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-              placeholder="Betrag"
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.9rem',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            />
-            <select
-              value={transferRecipient}
-              onChange={e => { setTransferRecipient(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.9rem',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            >
-              <option value="">Bank</option>
-              {otherPlayers.map(a => (
-                <option key={a.userId} value={a.username}>{a.username}</option>
-              ))}
-            </select>
-          </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input
+                  type="number"
+                  min={1}
+                  max={myAccount?.balance || 0}
+                  value={transferAmount}
+                  onChange={e => { setTransferAmount(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                  placeholder="Betrag"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+                <select
+                  value={transferRecipient}
+                  onChange={e => { setTransferRecipient(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                >
+                  <option value="">Bank</option>
+                  {otherPlayers.map(a => (
+                    <option key={a.userId} value={a.username}>{a.username}</option>
+                  ))}
+                </select>
+              </div>
 
-          <input
-            type="text"
-            value={transferMemo}
-            onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-            placeholder="Verwendungszweck"
-            maxLength={100}
-            style={{
-              width: '100%',
-              padding: '0.5rem',
-              marginBottom: '0.5rem',
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.9rem',
-              backgroundColor: 'var(--color-bg)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-              boxSizing: 'border-box',
-            }}
-          />
+              <input
+                type="text"
+                value={transferMemo}
+                onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                placeholder="Verwendungszweck"
+                maxLength={100}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  marginBottom: '0.5rem',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.9rem',
+                  backgroundColor: 'var(--color-bg)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                  boxSizing: 'border-box',
+                }}
+              />
 
-          <button
-            onClick={handleTransfer}
-            disabled={transferLoading || !transferAmount || !myAccount}
-            style={{
-              ...buttonStyle,
-              opacity: transferLoading || !transferAmount || !myAccount ? 0.5 : 1,
-              cursor: transferLoading || !transferAmount || !myAccount ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {transferLoading ? 'Wird gesendet…' : 'Senden'}
-          </button>
+              <button
+                onClick={handleTransfer}
+                disabled={transferLoading || !transferAmount || !myAccount}
+                style={{
+                  ...buttonStyle,
+                  opacity: transferLoading || !transferAmount || !myAccount ? 0.5 : 1,
+                  cursor: transferLoading || !transferAmount || !myAccount ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {transferLoading ? 'Wird gesendet…' : 'Senden'}
+              </button>
 
-          {transferError && (
-            <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferError}</p>
-          )}
-          {transferSuccess && (
-            <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>
-          )}
-        </div>
+              {transferError && (
+                <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferError}</p>
+              )}
+              {transferSuccess && (
+                <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>
+              )}
+            </div>
 
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
-          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld von Bank empfangen</p>
+            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+              <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld von Bank empfangen</p>
 
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <input
-              type="number"
-              min={1}
-              value={receiveAmount}
-              onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
-              placeholder="Betrag"
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.9rem',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            />
-          </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={receiveAmount}
+                  onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+                  placeholder="Betrag"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+              </div>
 
-          <input
-            type="text"
-            value={receiveMemo}
-            onChange={e => { setReceiveMemo(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
-            placeholder="Verwendungszweck"
-            maxLength={100}
-            style={{
-              width: '100%',
-              padding: '0.5rem',
-              marginBottom: '0.5rem',
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.9rem',
-              backgroundColor: 'var(--color-bg)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-              boxSizing: 'border-box',
-            }}
-          />
+              <input
+                type="text"
+                value={receiveMemo}
+                onChange={e => { setReceiveMemo(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+                placeholder="Verwendungszweck"
+                maxLength={100}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  marginBottom: '0.5rem',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.9rem',
+                  backgroundColor: 'var(--color-bg)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                  boxSizing: 'border-box',
+                }}
+              />
 
-          <button
-            onClick={handleReceiveFromBank}
-            disabled={receiveLoading || !receiveAmount}
-            style={{
-              ...buttonStyle,
-              opacity: receiveLoading || !receiveAmount ? 0.5 : 1,
-              cursor: receiveLoading || !receiveAmount ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
-          </button>
+              <button
+                onClick={handleReceiveFromBank}
+                disabled={receiveLoading || !receiveAmount}
+                style={{
+                  ...buttonStyle,
+                  opacity: receiveLoading || !receiveAmount ? 0.5 : 1,
+                  cursor: receiveLoading || !receiveAmount ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
+              </button>
 
-          {receiveError && (
-            <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveError}</p>
-          )}
-          {receiveSuccess && (
-            <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>
-          )}
-        </div>
+              {receiveError && (
+                <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveError}</p>
+              )}
+              {receiveSuccess && (
+                <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
+            Transaktionen sind im pausierten Zustand nicht möglich.
+          </p>
+        )}
 
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
           <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Transaktionshistorie</p>

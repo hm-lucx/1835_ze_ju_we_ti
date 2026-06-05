@@ -988,3 +988,40 @@ test('POST /api/games/:id/receive-from-bank speichert memo', async () => {
   assert.ok(tx);
   assert.equal(tx.memo, 'Bankgrund');
 });
+
+test('POST /api/games/:id/pause pausiert ein laufendes Spiel', async () => {
+  const t1 = await registerAndGetToken(app, 'pauseTest1');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'pauseTest2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'pauseTest3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/pause`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'PAUSED');
+  assert.equal(res.body.message, 'Spiel pausiert.');
+  assert.ok(res.body.accounts);
+  assert.ok(res.body.bank);
+});
+
+test('POST /api/games/:id/pause ohne Auth wird abgewiesen', async () => {
+  const res = await request(app)
+    .post('/api/games/fake-id/pause');
+
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/games/:id/pause im LOBBY-Status wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'pauseLobbyTest');
+  const { game } = await createAndGetInviteToken(app, t1);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/pause`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 409);
+  assert.equal(res.body.message, 'Nur laufende Spiele können pausiert werden.');
+});
