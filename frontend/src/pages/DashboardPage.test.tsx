@@ -760,4 +760,87 @@ describe('DashboardPage', () => {
       );
     });
   });
+
+  it('zeigt Pause-Button im RUNNING-Status', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel pausieren')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Pausiert-Badge im PAUSED-Status und Formulare ausgeblendet', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'PAUSED',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('⚠️ Spiel pausiert')).toBeInTheDocument();
+      expect(screen.getByText('Transaktionen sind im pausierten Zustand nicht möglich.')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Geld senden')).not.toBeInTheDocument();
+    expect(screen.queryByText('Geld von Bank empfangen')).not.toBeInTheDocument();
+  });
+
+  it('bestätigt Pause vor API-Call', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      status: 'PAUSED',
+    });
+
+    const originalConfirm = window.confirm;
+    window.confirm = vi.fn(() => true);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel pausieren')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByText('Spiel pausieren'));
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith(
+        '/api/games/game-1/pause',
+        {},
+        'test-token'
+      );
+    });
+
+    window.confirm = originalConfirm;
+  });
 });

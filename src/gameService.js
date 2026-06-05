@@ -192,7 +192,7 @@ async function joinRoundByCode({ inviteCode, username }) {
     throw new GameError(404, 'Code ungültig oder abgelaufen.');
   }
 
-  if (game.status === 'RUNNING' || game.status === 'FINISHED') {
+  if (game.status === 'RUNNING' || game.status === 'FINISHED' || game.status === 'PAUSED') {
     throw new GameError(409, 'Runde bereits gestartet.');
   }
 
@@ -327,7 +327,7 @@ async function getMyGames(username) {
   });
 
   const games = gamePlayers
-    .filter(gp => gp.game.status === 'LOBBY' || gp.game.status === 'RUNNING')
+    .filter(gp => gp.game.status === 'LOBBY' || gp.game.status === 'RUNNING' || gp.game.status === 'PAUSED')
     .map(gp => ({
       id: gp.game.id,
       host: gp.game.host.username,
@@ -577,6 +577,43 @@ async function receiveFromBank({ gameId, username, amount, memo }) {
   };
 }
 
+async function pauseGame({ gameId, username }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { players: { include: { user: true } } },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'RUNNING') {
+    throw new GameError(409, 'Nur laufende Spiele können pausiert werden.');
+  }
+
+  const player = game.players.find(p => p.user.username === username);
+  if (!player) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  const updatedGame = await db.game.update({
+    where: { id: gameId },
+    data: { status: 'PAUSED' },
+    include: {
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  return {
+    accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+    status: updatedGame.status,
+  };
+}
+
 async function getTransactions(gameId, username) {
   const db = getDb();
 
@@ -644,6 +681,7 @@ module.exports = {
   startGame,
   transferMoney,
   receiveFromBank,
+  pauseGame,
   getTransactions,
   resetGames,
   MAX_PLAYERS,
