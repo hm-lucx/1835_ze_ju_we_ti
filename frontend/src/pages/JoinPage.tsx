@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiPost } from '../lib/api';
 
@@ -24,6 +24,7 @@ const cardStyle = {
 export default function JoinPage() {
   const { token } = useAuth();
   const [searchParams] = useSearchParams();
+  const { inviteCode: pathCode } = useParams<{ inviteCode?: string }>();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'joining' | 'success' | 'error'>('joining');
   const [message, setMessage] = useState('');
@@ -34,26 +35,44 @@ export default function JoinPage() {
     const gameId = searchParams.get('game');
     const inviteToken = searchParams.get('token');
 
-    if (!gameId || !inviteToken) {
-      setStatus('error');
-      setMessage('Ungültiger Einladungslink.');
+    if (gameId && inviteToken) {
+      apiPost(`/api/games/${gameId}/join`, { inviteToken }, token).then(data => {
+        if (data.message && data.game) {
+          setStatus('success');
+          setMessage(data.message);
+          setTimeout(() => navigate(`/lobby?game=${gameId}`), 1500);
+        } else {
+          setStatus('error');
+          setMessage(data.message || 'Beitritt fehlgeschlagen.');
+        }
+      }).catch((err: { message?: string }) => {
+        setStatus('error');
+        setMessage(err.message || 'Beitritt fehlgeschlagen.');
+      });
       return;
     }
 
-    apiPost(`/api/games/${gameId}/join`, { inviteToken }, token).then(data => {
-      if (data.message && data.game) {
-        setStatus('success');
-        setMessage(data.message);
-        setTimeout(() => navigate(`/lobby?game=${gameId}`), 1500);
-      } else {
+    if (pathCode) {
+      apiPost('/api/rounds/join', { inviteCode: pathCode.toUpperCase() }, token).then(data => {
+        const res = data as { roundId: string };
+        if (res.roundId) {
+          setStatus('success');
+          setMessage('Beitritt erfolgreich.');
+          setTimeout(() => navigate(`/lobby?game=${res.roundId}`), 1500);
+        } else {
+          setStatus('error');
+          setMessage('Beitritt fehlgeschlagen.');
+        }
+      }).catch((err: { message?: string }) => {
         setStatus('error');
-        setMessage(data.message || 'Beitritt fehlgeschlagen.');
-      }
-    }).catch((err: { message?: string }) => {
-      setStatus('error');
-      setMessage(err.message || 'Beitritt fehlgeschlagen.');
-    });
-  }, [token, searchParams, navigate]);
+        setMessage(err.message || 'Beitritt fehlgeschlagen.');
+      });
+      return;
+    }
+
+    setStatus('error');
+    setMessage('Ungültiger Einladungslink.');
+  }, [token, searchParams, pathCode, navigate]);
 
   return (
     <div style={centerStyle}>
@@ -71,10 +90,10 @@ export default function JoinPage() {
           <>
             <p style={{ color: 'var(--color-error)' }}>{message}</p>
             <button
-              onClick={() => navigate('/lobby')}
+              onClick={() => navigate('/dashboard')}
               style={{ marginTop: '1rem', padding: '0.75rem 2rem', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, color: '#1a1410', backgroundColor: 'var(--color-accent)', border: 'none', cursor: 'pointer' }}
             >
-              Zur Lobby
+              Zum Dashboard
             </button>
           </>
         )}

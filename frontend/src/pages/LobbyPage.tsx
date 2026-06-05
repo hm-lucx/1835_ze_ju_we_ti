@@ -13,7 +13,9 @@ interface Game {
   host: string;
   status: string;
   players: Player[];
+  inviteCode: string;
   inviteLink: string;
+  inviteLinkShort: string;
   qrCodeSvg?: string;
   startedAt?: string;
   createdAt: string;
@@ -128,7 +130,7 @@ export default function LobbyPage() {
 
   function handleCopyLink() {
     if (!game) return;
-    navigator.clipboard.writeText(game.inviteLink);
+    navigator.clipboard.writeText(game.inviteLinkShort);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -227,10 +229,19 @@ export default function LobbyPage() {
                     </button>
                   )}
 
-                  <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+                      Einladungscode
+                    </p>
+                    <p style={{ margin: '0 0 0.75rem', fontFamily: 'monospace', fontSize: '1.3rem', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.15em' }}>
+                      {game.inviteCode}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <input
                       readOnly
-                      value={game.inviteLink}
+                      value={game.inviteLinkShort}
                       style={{ flex: 1, padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                     />
                     <button onClick={handleCopyLink} style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>

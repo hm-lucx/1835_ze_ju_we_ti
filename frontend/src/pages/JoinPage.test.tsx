@@ -76,7 +76,7 @@ describe('JoinPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Diese Runde hat bereits begonnen.')).toBeInTheDocument();
     });
-    expect(screen.getByText('Zur Lobby')).toBeInTheDocument();
+    expect(screen.getByText('Zum Dashboard')).toBeInTheDocument();
   });
 
   it('zeigt Fehler bei fehlenden Query-Parametern', () => {
@@ -118,7 +118,7 @@ describe('JoinPage', () => {
     renderWithRoute('game-1', 'valid-token');
 
     await waitFor(() => {
-      expect(screen.getByText('Zur Lobby')).toBeInTheDocument();
+      expect(screen.getByText('Zum Dashboard')).toBeInTheDocument();
     }, { timeout: 5000, interval: 100 });
   });
 });

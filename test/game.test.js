@@ -361,3 +361,144 @@ test('Maximale Spieleranzahl von 7 wird durchgesetzt', async () => {
   assert.equal(extraJoinRes.status, 409);
   assert.equal(extraJoinRes.body.message, 'Diese Runde ist bereits voll.');
 });
+
+test('Spiel erstellen liefert inviteCode', async () => {
+  const token = await registerAndGetToken(app, 'hostCode');
+  const res = await request(app)
+    .post('/api/games')
+    .set(asUser(token));
+
+  assert.equal(res.status, 201);
+  assert.ok(res.body.game.inviteCode);
+  assert.equal(res.body.game.inviteCode.length, 6);
+});
+
+test('POST /api/rounds/join mit gültigem Code funktioniert', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostJoinCode');
+  const playerToken = await registerAndGetToken(app, 'playerJoinCode');
+
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+  const { inviteCode } = createRes.body.game;
+
+  const joinRes = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(playerToken))
+    .send({ inviteCode });
+
+  assert.equal(joinRes.status, 200);
+  assert.ok(joinRes.body.roundId);
+  assert.ok(joinRes.body.playerCount);
+});
+
+test('POST /api/rounds/join ohne Auth wird abgewiesen', async () => {
+  const res = await request(app)
+    .post('/api/rounds/join')
+    .send({ inviteCode: 'ABC123' });
+
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/rounds/join mit ungültigem Code gibt 404', async () => {
+  const token = await registerAndGetToken(app, 'playerBadCode');
+  const res = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(token))
+    .send({ inviteCode: 'XXXXXX' });
+
+  assert.equal(res.status, 404);
+  assert.equal(res.body.message, 'Code ungültig oder abgelaufen.');
+});
+
+test('POST /api/rounds/join bei voller Runde gibt 409', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostFullCode');
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+  const { inviteCode } = createRes.body.game;
+
+  const playerTokens = [];
+  for (let i = 1; i <= 6; i++) {
+    const pt = await registerAndGetToken(app, `p_full_${i}`);
+    playerTokens.push(pt);
+    await request(app)
+      .post('/api/rounds/join')
+      .set(asUser(pt))
+      .send({ inviteCode });
+  }
+
+  const extraToken = await registerAndGetToken(app, 'extraFull');
+  const extraRes = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(extraToken))
+    .send({ inviteCode });
+
+  assert.equal(extraRes.status, 409);
+  assert.equal(extraRes.body.message, 'Runde ist voll.');
+});
+
+test('POST /api/rounds/join bereits gestartete Runde gibt 409', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostStartedCode');
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+  const { inviteCode, id } = createRes.body.game;
+
+  const p2 = await registerAndGetToken(app, 'p2_start_code');
+  const p3 = await registerAndGetToken(app, 'p3_start_code');
+  await request(app).post('/api/rounds/join').set(asUser(p2)).send({ inviteCode });
+  await request(app).post('/api/rounds/join').set(asUser(p3)).send({ inviteCode });
+
+  await request(app)
+    .post(`/api/games/${id}/start`)
+    .set(asUser(hostToken));
+
+  const lateToken = await registerAndGetToken(app, 'late_start_code');
+  const lateRes = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(lateToken))
+    .send({ inviteCode });
+
+  assert.equal(lateRes.status, 409);
+  assert.equal(lateRes.body.message, 'Runde bereits gestartet.');
+});
+
+test('POST /api/rounds/join doppelter Beitritt gibt 409', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostDupCode');
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+  const { inviteCode } = createRes.body.game;
+
+  const dupToken = await registerAndGetToken(app, 'dupPlayer');
+  await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(dupToken))
+    .send({ inviteCode });
+
+  const dupRes = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(dupToken))
+    .send({ inviteCode });
+
+  assert.equal(dupRes.status, 409);
+  assert.equal(dupRes.body.message, 'Du bist bereits in dieser Runde.');
+});
+
+test('POST /api/rounds/join unter 16 Jahren wird abgewiesen', async () => {
+  const hostToken = await registerAndGetToken(app, 'hostAgeCode');
+  const createRes = await request(app)
+    .post('/api/games')
+    .set(asUser(hostToken));
+  const { inviteCode } = createRes.body.game;
+
+  const youngToken = await createTestUser('youngCode', 'youngcode@test.de', 'GeheimesPasswort123', '2015-06-01');
+  const joinRes = await request(app)
+    .post('/api/rounds/join')
+    .set(asUser(youngToken))
+    .send({ inviteCode });
+
+  assert.equal(joinRes.status, 403);
+  assert.equal(joinRes.body.message, 'Mindestalter nicht erfüllt.');
+});

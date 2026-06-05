@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, leaveGame, startGame } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -193,6 +193,18 @@ function createApp(options = {}) {
         message: 'Du hast die Runde verlassen.',
         ...result
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/rounds/join', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await joinRoundByCode({
+        inviteCode: req.body.inviteCode,
+        username: req.user.username
+      });
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }
