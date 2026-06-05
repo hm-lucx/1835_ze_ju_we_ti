@@ -843,4 +843,98 @@ describe('DashboardPage', () => {
 
     window.confirm = originalConfirm;
   });
+
+  it('zeigt Spiel beenden Button im RUNNING-Status', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel beenden')).toBeInTheDocument();
+    });
+  });
+
+  it('bestätigt Spiel beenden vor API-Call', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      status: 'FINISHED',
+      winners: ['host1'],
+      finishedAt: new Date().toISOString(),
+    });
+
+    const originalConfirm = window.confirm;
+    window.confirm = vi.fn(() => true);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel beenden')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByText('Spiel beenden'));
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith(
+        '/api/games/game-1/finish',
+        {},
+        'test-token'
+      );
+    });
+
+    window.confirm = originalConfirm;
+  });
+
+  it('zeigt 🏆 Spiel beendet und Gewinner-Highlight im FINISHED-Status', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'FINISHED',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 800 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 10800 },
+        winners: ['host1'],
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('🏆 Spiel beendet')).toBeInTheDocument();
+      expect(screen.getByText('Das Spiel ist beendet.')).toBeInTheDocument();
+      expect(screen.getByText('👑 host1 (Du)')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Geld senden')).not.toBeInTheDocument();
+    expect(screen.queryByText('Geld von Bank empfangen')).not.toBeInTheDocument();
+  });
 });
