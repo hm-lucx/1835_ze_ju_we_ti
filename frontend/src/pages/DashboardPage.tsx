@@ -19,6 +19,23 @@ interface Game {
   bank: { balance: number } | null;
 }
 
+interface Transaction {
+  id: string;
+  amount: number;
+  type: string;
+  memo: string | null;
+  fromUsername: string | null;
+  toUsername: string | null;
+  createdAt: string;
+  runningBalance: number | null;
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  STARTING_CAPITAL: 'Startkapital',
+  PLAYER_TRANSFER: 'Überweisung',
+  RECEIVE_FROM_BANK: 'Bankeinzahlung',
+};
+
 const centerStyle = {
   display: 'flex',
   justifyContent: 'center',
@@ -98,6 +115,14 @@ export default function DashboardPage() {
   const [transferError, setTransferError] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState('');
+  const [receiveAmount, setReceiveAmount] = useState('');
+  const [receiveError, setReceiveError] = useState('');
+  const [receiveLoading, setReceiveLoading] = useState(false);
+  const [receiveSuccess, setReceiveSuccess] = useState('');
+  const [transferMemo, setTransferMemo] = useState('');
+  const [receiveMemo, setReceiveMemo] = useState('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
 
   async function handleTransfer() {
     if (!token || !id || !myAccount) return;
@@ -114,14 +139,38 @@ export default function DashboardPage() {
     setTransferError('');
     setTransferSuccess('');
     try {
-      const data = await apiPost(`/api/games/${id}/transfer`, { toUsername: transferRecipient, amount }, token) as { accounts: Account[]; bank: { balance: number } };
+      const data = await apiPost(`/api/games/${id}/transfer`, { toUsername: transferRecipient, amount, memo: transferMemo || undefined }, token) as { accounts: Account[]; bank: { balance: number } };
       setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank } : null);
       setTransferAmount('');
+      setTransferMemo('');
       setTransferSuccess('Überweisung erfolgreich.');
     } catch (err: unknown) {
       setTransferError((err as { message?: string }).message || 'Überweisung fehlgeschlagen.');
     } finally {
       setTransferLoading(false);
+    }
+  }
+
+  async function handleReceiveFromBank() {
+    if (!token || !id) return;
+    const amount = parseInt(receiveAmount, 10);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setReceiveError('Betrag muss eine positive ganze Zahl sein.');
+      return;
+    }
+    setReceiveLoading(true);
+    setReceiveError('');
+    setReceiveSuccess('');
+    try {
+      const data = await apiPost(`/api/games/${id}/receive-from-bank`, { amount, memo: receiveMemo || undefined }, token) as { accounts: Account[]; bank: { balance: number } };
+      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank } : null);
+      setReceiveAmount('');
+      setReceiveMemo('');
+      setReceiveSuccess('Geld von Bank empfangen.');
+    } catch (err: unknown) {
+      setReceiveError((err as { message?: string }).message || 'Auszahlung fehlgeschlagen.');
+    } finally {
+      setReceiveLoading(false);
     }
   }
 
@@ -140,16 +189,32 @@ export default function DashboardPage() {
     }
   }, [id, token]);
 
+  const loadTransactions = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      const data = await apiGet(`/api/games/${id}/transactions`, token) as { transactions: Transaction[] };
+      setTransactions(data.transactions);
+    } catch {
+      // silently ignore
+    } finally {
+      setTransactionsLoading(false);
+    }
+  }, [id, token]);
+
   useEffect(() => {
     loadGame();
-  }, [loadGame]);
+    loadTransactions();
+  }, [loadGame, loadTransactions]);
 
   useEffect(() => {
     if (!game) return;
     if (game.status !== 'RUNNING') return;
-    const interval = setInterval(loadGame, POLL_INTERVAL);
+    const interval = setInterval(() => {
+      loadGame();
+      loadTransactions();
+    }, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [game, loadGame]);
+  }, [game, loadGame, loadTransactions]);
 
   if (loading) {
     return (
@@ -216,9 +281,9 @@ export default function DashboardPage() {
         )}
 
         {game.bank && (
-          <div style={{ ...balanceCardStyle, borderColor: 'var(--color-border)', marginBottom: '1.5rem' }}>
+          <div style={{ ...balanceCardStyle, borderColor: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-border)', marginBottom: '1.5rem' }}>
             <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)' }}>Bank</p>
-            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: 'var(--color-text)' }}>{game.bank.balance} €</p>
+            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} €</p>
           </div>
         )}
 
@@ -282,6 +347,25 @@ export default function DashboardPage() {
             </select>
           </div>
 
+          <input
+            type="text"
+            value={transferMemo}
+            onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+            placeholder="Verwendungszweck"
+            maxLength={100}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              marginBottom: '0.5rem',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.9rem',
+              backgroundColor: 'var(--color-bg)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text)',
+              boxSizing: 'border-box',
+            }}
+          />
+
           <button
             onClick={handleTransfer}
             disabled={transferLoading || !transferAmount || !myAccount}
@@ -299,6 +383,112 @@ export default function DashboardPage() {
           )}
           {transferSuccess && (
             <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>
+          )}
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld von Bank empfangen</p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              type="number"
+              min={1}
+              value={receiveAmount}
+              onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+              placeholder="Betrag"
+              style={{
+                flex: 1,
+                padding: '0.5rem',
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.9rem',
+                backgroundColor: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+          </div>
+
+          <input
+            type="text"
+            value={receiveMemo}
+            onChange={e => { setReceiveMemo(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+            placeholder="Verwendungszweck"
+            maxLength={100}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              marginBottom: '0.5rem',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.9rem',
+              backgroundColor: 'var(--color-bg)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text)',
+              boxSizing: 'border-box',
+            }}
+          />
+
+          <button
+            onClick={handleReceiveFromBank}
+            disabled={receiveLoading || !receiveAmount}
+            style={{
+              ...buttonStyle,
+              opacity: receiveLoading || !receiveAmount ? 0.5 : 1,
+              cursor: receiveLoading || !receiveAmount ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
+          </button>
+
+          {receiveError && (
+            <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveError}</p>
+          )}
+          {receiveSuccess && (
+            <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>
+          )}
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Transaktionshistorie</p>
+
+          {transactionsLoading ? (
+            <p style={mutedStyle}>Lade Transaktionen…</p>
+          ) : transactions.length === 0 ? (
+            <p style={mutedStyle}>Noch keine Transaktionen.</p>
+          ) : (
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Typ</th>
+                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Von</th>
+                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Nach</th>
+                    <th style={{ textAlign: 'right', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Betrag</th>
+                    <th style={{ textAlign: 'right', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Saldo</th>
+                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Zweck</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(t => {
+                    const amountStr = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
+                      ? `+${t.amount} €`
+                      : `-${t.amount} €`;
+                    const amountColor = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
+                      ? 'var(--color-accent)'
+                      : 'var(--color-error)';
+                    return (
+                      <tr key={t.id}>
+                        <td style={{ padding: '0.25rem 0.3rem' }}>{TYPE_LABELS[t.type] || t.type}</td>
+                        <td style={{ padding: '0.25rem 0.3rem' }}>{t.fromUsername || 'Bank'}</td>
+                        <td style={{ padding: '0.25rem 0.3rem' }}>{t.toUsername || 'Bank'}</td>
+                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem', color: amountColor }}>{amountStr}</td>
+                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem' }}>{t.runningBalance !== null ? `${t.runningBalance} €` : '—'}</td>
+                        <td style={{ padding: '0.25rem 0.3rem', color: 'var(--color-muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.memo || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
