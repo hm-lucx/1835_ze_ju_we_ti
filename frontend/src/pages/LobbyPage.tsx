@@ -29,6 +29,14 @@ interface Game {
   bank?: { balance: number } | null;
 }
 
+interface MyGameSummary {
+  id: string;
+  host: string;
+  status: string;
+  createdAt: string;
+  startedAt?: string | null;
+}
+
 const centerStyle = {
   display: 'flex',
   justifyContent: 'center',
@@ -82,6 +90,7 @@ export default function LobbyPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [game, setGame] = useState<Game | null>(null);
+  const [myGames, setMyGames] = useState<MyGameSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -179,6 +188,13 @@ export default function LobbyPage() {
 
   const gameIdParam = searchParams.get('game');
 
+  function formatDate(dateString: string) {
+    return new Date(dateString).toLocaleString('de-DE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  }
+
   useEffect(() => {
     if (gameIdParam) {
       loadGame(gameIdParam);
@@ -186,11 +202,15 @@ export default function LobbyPage() {
     }
     if (!token) return;
     apiGet('/api/games/mine', token).then((res) => {
-      const games = (res as { games: { id: string }[] }).games;
+      const games = (res as { games: MyGameSummary[] }).games;
       if (games.length === 1 && games[0]) {
         navigate(`/lobby?game=${games[0].id}`, { replace: true });
+      } else {
+        setMyGames(games);
       }
-    }).catch(() => {});
+    }).catch(() => {
+      setMyGames([]);
+    });
   }, [gameIdParam, loadGame, token, navigate]);
 
   useEffect(() => {
@@ -247,6 +267,37 @@ export default function LobbyPage() {
             >
               Runde beitreten
             </button>
+
+            {myGames.length > 0 && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', textAlign: 'center', color: 'var(--color-accent)' }}>
+                  Meine Spielrunden
+                </h2>
+                <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
+                  Wähle eine vorhandene Runde aus, um ohne Einladungscode weiterzumachen.
+                </p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
+                  {myGames.map((savedGame) => (
+                    <li key={savedGame.id} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '0.75rem', backgroundColor: 'var(--color-bg)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700 }}>{savedGame.host === user?.username ? 'Meine Runde' : `Host: ${savedGame.host}`}</span>
+                        <span style={{ color: 'var(--color-muted)', fontSize: '0.85rem' }}>{formatDate(savedGame.createdAt)}</span>
+                      </div>
+                      <p style={{ margin: '0.5rem 0 0.75rem', fontSize: '0.9rem' }}>
+                        Status: <strong>{savedGame.status}</strong>
+                        {savedGame.status === 'RUNNING' && savedGame.startedAt ? ` – gestartet ${formatDate(savedGame.startedAt)}` : ''}
+                      </p>
+                      <button
+                        onClick={() => navigate(`/lobby?game=${savedGame.id}`)}
+                        style={{ ...buttonStyle, width: '100%', padding: '0.65rem 1rem', marginTop: 0 }}
+                      >
+                        {savedGame.status === 'RUNNING' ? 'Zum Spiel' : 'Lobby öffnen'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
 

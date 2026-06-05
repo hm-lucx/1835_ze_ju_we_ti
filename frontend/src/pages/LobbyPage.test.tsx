@@ -246,6 +246,38 @@ describe('LobbyPage', () => {
     expect(screen.getByText('Runde beitreten')).toBeInTheDocument();
   });
 
+  it('zeigt vorhandene Spielrunden und Wiedereinstieg ohne Code', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      games: [
+        { id: 'round-1', host: 'host1', status: 'LOBBY', createdAt: new Date().toISOString(), startedAt: null },
+        { id: 'round-2', host: 'host2', status: 'RUNNING', createdAt: new Date().toISOString(), startedAt: new Date().toISOString() },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Meine Spielrunden')).toBeInTheDocument();
+      expect(screen.getByText('Lobby öffnen')).toBeInTheDocument();
+      expect(screen.getByText('Zum Spiel')).toBeInTheDocument();
+    });
+  });
+
+  it('öffnet eine vorhandene Runde beim Klick auf den Wiedereinstiegs-Button', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      games: [
+        { id: 'round-1', host: 'host1', status: 'LOBBY', createdAt: new Date().toISOString(), startedAt: null },
+      ],
+    });
+
+    renderPage();
+
+    const openButton = await screen.findByText('Lobby öffnen');
+    await userEvent.click(openButton);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/lobby?game=round-1');
+  });
+
   it('zeigt Eingabefeld nach Klick auf Runde beitreten', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Runde beitreten'));
