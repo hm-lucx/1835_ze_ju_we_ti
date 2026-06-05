@@ -1163,3 +1163,54 @@ test('POST /api/games/:id/confirm-resume doppelte Bestätigung wird abgewiesen',
   assert.equal(res.status, 409);
   assert.equal(res.body.message, 'Du hast bereits bestätigt.');
 });
+
+test('DELETE /api/games/:id löscht eigene Lobby-Runde als Host', async () => {
+  const t1 = await registerAndGetToken(app, 'deleteTest1');
+  const t2 = await registerAndGetToken(app, 'deleteTest2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+
+  const res = await request(app)
+    .delete(`/api/games/${game.id}`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.message, 'Runde gelöscht.');
+  assert.equal(res.body.deleted, true);
+
+  const mineRes = await request(app)
+    .get('/api/games/mine')
+    .set(asUser(t1));
+  assert.equal(mineRes.body.games.length, 0);
+});
+
+test('DELETE /api/games/:id als Nicht-Host wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'deleteDeny1');
+  const t2 = await registerAndGetToken(app, 'deleteDeny2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+
+  const res = await request(app)
+    .delete(`/api/games/${game.id}`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 403);
+  assert.equal(res.body.message, 'Nur der Host kann die Runde löschen.');
+});
+
+test('DELETE /api/games/:id im RUNNING-Status wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'deleteRun1');
+  const t2 = await registerAndGetToken(app, 'deleteRun2');
+  const t3 = await registerAndGetToken(app, 'deleteRun3');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const res = await request(app)
+    .delete(`/api/games/${game.id}`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.message, 'Nur Runden in der Lobby können gelöscht werden.');
+});

@@ -31,3 +31,11 @@ export async function apiGet(path: string, token?: string) {
   });
   return handleResponse(res);
 }
+
+export async function apiDelete(path: string, token?: string) {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(token),
+  });
+  return handleResponse(res);
+}
