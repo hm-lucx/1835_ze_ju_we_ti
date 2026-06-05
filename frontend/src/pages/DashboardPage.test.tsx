@@ -83,7 +83,7 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Dein Kontostand')).toBeInTheDocument();
     });
-    expect(screen.getAllByText('600 €').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('600 Mark').length).toBeGreaterThanOrEqual(1);
   });
 
   it('zeigt Bank-Kontostand an', async () => {
@@ -109,7 +109,7 @@ describe('DashboardPage', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Bank').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('11000 €')).toBeInTheDocument();
+      expect(screen.getByText('11000 Mark')).toBeInTheDocument();
     });
   });
 
@@ -480,7 +480,7 @@ describe('DashboardPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('-500 €')).toBeInTheDocument();
+      expect(screen.getByText('-500 Mark')).toBeInTheDocument();
     });
   });
 });
