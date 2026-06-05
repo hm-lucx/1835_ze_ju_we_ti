@@ -50,6 +50,7 @@ model Game {
   hostId      String
   status      GameStatus @default(LOBBY)
   inviteToken String     @unique @default(cuid())
+  inviteCode  String     @unique
   createdAt   DateTime   @default(now())
   startedAt   DateTime?
   finishedAt  DateTime?

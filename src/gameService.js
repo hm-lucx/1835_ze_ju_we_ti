@@ -19,13 +19,24 @@ function generateInviteToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[crypto.randomInt(chars.length)];
+  }
+  return code;
+}
+
 async function createGame({ hostUsername }) {
   const id = crypto.randomUUID();
   const inviteToken = generateInviteToken();
+  const inviteCode = generateInviteCode();
   const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const inviteLink = `${baseUrl}/join?token=${inviteToken}&game=${id}`;
+  const inviteLinkShort = `${baseUrl}/join/${inviteCode}`;
 
-  const qrCodeSvg = await QRCode.toString(inviteLink, { type: 'svg' });
+  const qrCodeSvg = await QRCode.toString(inviteLinkShort, { type: 'svg' });
 
   const db = getDb();
   const user = await db.user.findUnique({ where: { username: hostUsername } });
@@ -38,6 +49,7 @@ async function createGame({ hostUsername }) {
       id,
       hostId: user.id,
       inviteToken,
+      inviteCode,
       players: {
         create: { userId: user.id }
       }
@@ -50,7 +62,9 @@ async function createGame({ hostUsername }) {
     host: hostUsername,
     status: game.status,
     players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+    inviteCode,
     inviteLink,
+    inviteLinkShort,
     qrCodeSvg,
     createdAt: game.createdAt.toISOString()
   };
@@ -73,14 +87,17 @@ async function getGame(gameId, username) {
   }
 
   const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`;
-  const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLink, { type: 'svg' });
+  const inviteLinkShort = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${game.inviteCode}`;
+  const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLinkShort, { type: 'svg' });
 
   return {
     id: game.id,
     host: game.host.username,
     status: game.status,
     players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+    inviteCode: game.inviteCode,
     inviteLink,
+    inviteLinkShort,
     qrCodeSvg,
     createdAt: game.createdAt.toISOString()
   };
@@ -136,6 +153,59 @@ async function joinGame({ gameId, inviteToken, username }) {
     host: updatedGame.host.username,
     status: updatedGame.status,
     players: updatedGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() }))
+  };
+}
+
+async function joinRoundByCode({ inviteCode, username }) {
+  const db = getDb();
+
+  if (!inviteCode || typeof inviteCode !== 'string' || inviteCode.length !== 6) {
+    throw new GameError(400, 'Ungültiger Code.');
+  }
+
+  const game = await db.game.findUnique({
+    where: { inviteCode: inviteCode.toUpperCase() },
+    include: { host: true, players: { include: { user: true } } }
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Code ungültig oder abgelaufen.');
+  }
+
+  if (game.status === 'RUNNING' || game.status === 'FINISHED') {
+    throw new GameError(409, 'Runde bereits gestartet.');
+  }
+
+  if (game.players.some(p => p.user.username === username)) {
+    throw new GameError(409, 'Du bist bereits in dieser Runde.');
+  }
+
+  if (game.players.length >= MAX_PLAYERS) {
+    throw new GameError(409, 'Runde ist voll.');
+  }
+
+  const user = await db.user.findUnique({ where: { username } });
+  if (!user) {
+    throw new GameError(404, 'Benutzer nicht gefunden.');
+  }
+
+  if (!isAtLeast16(user.birthdate)) {
+    throw new GameError(403, 'Mindestalter nicht erfüllt.');
+  }
+
+  await db.gamePlayer.create({
+    data: { gameId: game.id, userId: user.id }
+  });
+
+  const updatedGame = await db.game.findUnique({
+    where: { id: game.id },
+    include: { host: true, players: { include: { user: true } } }
+  });
+
+  return {
+    roundId: updatedGame.id,
+    roundName: `Runde von ${updatedGame.host.username}`,
+    playerCount: updatedGame.players.length
   };
 }
 
@@ -293,6 +363,7 @@ module.exports = {
   getGame,
   getMyGames,
   joinGame,
+  joinRoundByCode,
   leaveGame,
   startGame,
   resetGames,
