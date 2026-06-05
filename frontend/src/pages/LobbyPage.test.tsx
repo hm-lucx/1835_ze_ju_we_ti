@@ -294,4 +294,85 @@ describe('LobbyPage', () => {
       expect(screen.getByText('Runde nicht gefunden.')).toBeInTheDocument();
     });
   });
+
+  it('zeigt eigene Spielrunden mit Status-Badge', async () => {
+    mockApiGet.mockResolvedValue({
+      games: [
+        {
+          id: 'game-lobby',
+          host: 'host1',
+          status: 'LOBBY',
+          createdAt: new Date().toISOString(),
+          playerCount: 2,
+          resumeConfirmedCount: 0,
+        },
+        {
+          id: 'game-paused',
+          host: 'other',
+          status: 'PAUSED',
+          createdAt: new Date().toISOString(),
+          playerCount: 4,
+          resumeConfirmedCount: 2,
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Deine Spielrunden')).toBeInTheDocument();
+      expect(screen.getByText('In Lobby')).toBeInTheDocument();
+      expect(screen.getByText('Pausiert')).toBeInTheDocument();
+      expect(screen.getByText(/2\/4 bereit/)).toBeInTheDocument();
+    });
+  });
+
+  it('öffnet laufendes Spiel direkt ohne Code', async () => {
+    mockApiGet.mockResolvedValue({
+      games: [{
+        id: 'game-running',
+        host: 'host1',
+        status: 'RUNNING',
+        createdAt: new Date().toISOString(),
+        playerCount: 3,
+        resumeConfirmedCount: 0,
+      }],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Läuft')).toBeInTheDocument();
+    });
+
+    const openButtons = screen.getAllByText('Öffnen');
+    await userEvent.click(openButtons[0]!);
+    expect(mockNavigate).toHaveBeenCalledWith('/game/game-running');
+  });
+
+  it('bestätigt Fortsetzung eines pausierten Spiels', async () => {
+    mockApiGet.mockResolvedValue({
+      games: [{
+        id: 'game-paused',
+        host: 'host1',
+        status: 'PAUSED',
+        createdAt: new Date().toISOString(),
+        playerCount: 3,
+        resumeConfirmedCount: 1,
+      }],
+    });
+    mockApiPost.mockResolvedValueOnce({ allConfirmed: false, resumeConfirmedCount: 2 });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Weiterspielen')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByText('Weiterspielen'));
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith('/api/games/game-paused/confirm-resume', {}, 'test-token');
+    });
+  });
 });

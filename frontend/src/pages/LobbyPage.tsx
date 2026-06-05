@@ -6,6 +6,7 @@ import { apiPost, apiGet } from '../lib/api';
 interface Player {
   username: string;
   joinedAt: string;
+  resumeConfirmed?: boolean;
 }
 
 interface Account {
@@ -27,6 +28,16 @@ interface Game {
   createdAt: string;
   accounts?: Account[];
   bank?: { balance: number } | null;
+}
+
+interface GameSummary {
+  id: string;
+  host: string;
+  status: string;
+  createdAt: string;
+  startedAt?: string;
+  playerCount: number;
+  resumeConfirmedCount: number;
 }
 
 const centerStyle = {
@@ -77,6 +88,36 @@ const mutedStyle = {
 
 const MIN_PLAYERS = 3;
 
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'LOBBY': return 'In Lobby';
+    case 'RUNNING': return 'Läuft';
+    case 'PAUSED': return 'Pausiert';
+    default: return status;
+  }
+}
+
+function statusBadgeStyle(status: string) {
+  const base = {
+    display: 'inline-block',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    padding: '0.15rem 0.5rem',
+    marginLeft: '0.5rem',
+    borderRadius: 2,
+  } as const;
+  switch (status) {
+    case 'LOBBY':
+      return { ...base, backgroundColor: 'rgba(201, 153, 58, 0.2)', color: 'var(--color-accent)' };
+    case 'RUNNING':
+      return { ...base, backgroundColor: 'rgba(46, 125, 50, 0.2)', color: '#2e7d32' };
+    case 'PAUSED':
+      return { ...base, backgroundColor: 'rgba(179, 58, 46, 0.15)', color: 'var(--color-error)' };
+    default:
+      return { ...base, backgroundColor: 'var(--color-border)', color: 'var(--color-muted)' };
+  }
+}
+
 export default function LobbyPage() {
   const { token, user, logout } = useAuth();
   const navigate = useNavigate();
@@ -87,6 +128,8 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false);
   const [joinMode, setJoinMode] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+  const [myGames, setMyGames] = useState<GameSummary[]>([]);
+  const [resumeLoading, setResumeLoading] = useState<string | null>(null);
 
   async function handleCreateGame() {
     if (!token) return;
@@ -179,19 +222,61 @@ export default function LobbyPage() {
 
   const gameIdParam = searchParams.get('game');
 
+  const loadMyGames = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiGet('/api/games/mine', token) as { games: GameSummary[] };
+      setMyGames(data.games || []);
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  async function handleConfirmResume(gameId: string) {
+    if (!token) return;
+    setResumeLoading(gameId);
+    try {
+      const result = await apiPost(`/api/games/${gameId}/confirm-resume`, {}, token) as {
+        allConfirmed?: boolean;
+      };
+      await loadMyGames();
+      if (result.allConfirmed) {
+        navigate(`/game/${gameId}`);
+      }
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Fehler bei Fortsetzung.');
+    } finally {
+      setResumeLoading(null);
+    }
+  }
+
+  function handleOpenGame(g: GameSummary) {
+    if (g.status === 'RUNNING' || g.status === 'PAUSED') {
+      navigate(`/game/${g.id}`);
+    } else {
+      navigate(`/lobby?game=${g.id}`);
+    }
+  }
+
   useEffect(() => {
+    loadMyGames();
     if (gameIdParam) {
       loadGame(gameIdParam);
       return;
     }
     if (!token) return;
     apiGet('/api/games/mine', token).then((res) => {
-      const games = (res as { games: { id: string }[] }).games;
+      const games = (res as { games: GameSummary[] }).games;
       if (games.length === 1 && games[0]) {
-        navigate(`/lobby?game=${games[0].id}`, { replace: true });
+        const g = games[0];
+        if (g.status === 'RUNNING') {
+          navigate(`/game/${g.id}`, { replace: true });
+        } else if (g.status === 'LOBBY') {
+          navigate(`/lobby?game=${g.id}`, { replace: true });
+        }
       }
     }).catch(() => {});
-  }, [gameIdParam, loadGame, token, navigate]);
+  }, [gameIdParam, loadGame, loadMyGames, token, navigate]);
 
   useEffect(() => {
     if (!game || game.status !== 'LOBBY') return;
@@ -202,10 +287,17 @@ export default function LobbyPage() {
   }, [game, loadGame]);
 
   useEffect(() => {
-    if (game && game.status === 'RUNNING') {
+    if (game && (game.status === 'RUNNING' || game.status === 'PAUSED')) {
       navigate(`/game/${game.id}`, { replace: true });
     }
   }, [game, navigate]);
+
+  useEffect(() => {
+    const hasPaused = myGames.some(g => g.status === 'PAUSED');
+    if (!hasPaused || game) return;
+    const interval = setInterval(loadMyGames, 3000);
+    return () => clearInterval(interval);
+  }, [myGames, game, loadMyGames]);
 
   const isHost = game && user && game.host === user.username;
   const canStart = isHost && game && game.players.length >= MIN_PLAYERS;
@@ -225,6 +317,80 @@ export default function LobbyPage() {
             Abmelden
           </button>
         </p>
+
+        {!game && !joinMode && myGames.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+              margin: '0 0 0.75rem',
+            }}>
+              Deine Spielrunden
+            </h2>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {myGames.map(g => (
+                <li
+                  key={g.id}
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    padding: '0.75rem',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
+                        {g.host === user?.username ? 'Deine Runde' : `Runde von ${g.host}`}
+                        <span style={statusBadgeStyle(g.status)}>{statusLabel(g.status)}</span>
+                      </p>
+                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+                        {g.playerCount} Spieler
+                        {g.status === 'PAUSED' && (
+                          <> · {g.resumeConfirmedCount}/{g.playerCount} bereit</>
+                        )}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexShrink: 0 }}>
+                      {g.status === 'PAUSED' && (
+                        <button
+                          onClick={() => handleConfirmResume(g.id)}
+                          disabled={resumeLoading === g.id}
+                          style={{
+                            ...buttonStyle,
+                            marginTop: 0,
+                            width: 'auto',
+                            padding: '0.4rem 0.75rem',
+                            fontSize: '0.8rem',
+                            opacity: resumeLoading === g.id ? 0.5 : 1,
+                          }}
+                        >
+                          {resumeLoading === g.id ? '…' : 'Weiterspielen'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOpenGame(g)}
+                        style={{
+                          ...buttonStyle,
+                          marginTop: 0,
+                          width: 'auto',
+                          padding: '0.4rem 0.75rem',
+                          fontSize: '0.8rem',
+                          backgroundColor: 'transparent',
+                          border: '1px solid var(--color-accent)',
+                          color: 'var(--color-accent)',
+                        }}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {!game && !joinMode && (
           <>
