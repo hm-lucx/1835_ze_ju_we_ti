@@ -62,6 +62,7 @@ model Game {
   stocks         Stock[]
   transactions   Transaction[]
   saves          GameSave[]
+  bankAccount    BankAccount?
 }
 
 model GamePlayer {
@@ -144,6 +145,14 @@ model GameSave {
   stateJson     Json
   boardPhotoUrl String?
   bankPhotoUrl  String?
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model BankAccount {
+  id      String @id @default(cuid())
+  gameId  String @unique
+  balance Int    @default(12000)
 
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 }
