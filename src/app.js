@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, finishGame, getTransactions } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, confirmResume, finishGame, getTransactions } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -243,6 +243,18 @@ function createApp(options = {}) {
         message: 'Spiel pausiert.',
         ...result,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/confirm-resume', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await confirmResume({
+        gameId: req.params.id,
+        username: req.user.username,
+      });
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

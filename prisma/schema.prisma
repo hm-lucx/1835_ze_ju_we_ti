@@ -66,10 +66,11 @@ model Game {
 }
 
 model GamePlayer {
-  id       String   @id @default(cuid())
-  gameId   String
-  userId   String
-  joinedAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  gameId          String
+  userId          String
+  joinedAt        DateTime @default(now())
+  resumeConfirmed Boolean  @default(false)
 
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])

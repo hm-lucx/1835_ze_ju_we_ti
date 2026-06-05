@@ -79,7 +79,11 @@ async function createGame({ hostUsername }) {
     inviteLink,
     inviteLinkShort,
     qrCodeSvg,
-    createdAt: game.createdAt.toISOString()
+    createdAt: game.createdAt.toISOString(),
+    startedAt: game.startedAt ? game.startedAt.toISOString() : null,
+    finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
+    accounts: [],
+    bank: null,
   };
 }
 
@@ -115,7 +119,7 @@ async function getGame(gameId, username) {
     id: game.id,
     host: game.host.username,
     status: game.status,
-    players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
+    players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString(), resumeConfirmed: p.resumeConfirmed })),
     inviteCode: game.inviteCode,
     inviteLink,
     inviteLinkShort,
@@ -334,7 +338,7 @@ async function getMyGames(username) {
 
   const gamePlayers = await db.gamePlayer.findMany({
     where: { userId: user.id },
-    include: { game: { include: { host: true } } }
+    include: { game: { include: { host: true, players: true } } }
   });
 
   const games = gamePlayers
@@ -345,6 +349,8 @@ async function getMyGames(username) {
       status: gp.game.status,
       createdAt: gp.game.createdAt.toISOString(),
       startedAt: gp.game.startedAt ? gp.game.startedAt.toISOString() : null,
+      playerCount: gp.game.players.length,
+      resumeConfirmedCount: gp.game.players.filter(p => p.resumeConfirmed).length,
     }))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -618,10 +624,66 @@ async function pauseGame({ gameId, username }) {
     },
   });
 
+  await db.gamePlayer.updateMany({
+    where: { gameId },
+    data: { resumeConfirmed: false },
+  });
+
   return {
     accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
     status: updatedGame.status,
+  };
+}
+
+async function confirmResume({ gameId, username }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { players: { include: { user: true } } },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'PAUSED') {
+    throw new GameError(409, 'Nur pausierte Spiele können fortgesetzt werden.');
+  }
+
+  const player = game.players.find(p => p.user.username === username);
+  if (!player) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  if (player.resumeConfirmed) {
+    throw new GameError(409, 'Du hast bereits bestätigt.');
+  }
+
+  await db.gamePlayer.update({
+    where: { id: player.id },
+    data: { resumeConfirmed: true },
+  });
+
+  const updatedPlayers = await db.gamePlayer.findMany({ where: { gameId } });
+  const totalPlayers = updatedPlayers.length;
+  const confirmedCount = updatedPlayers.filter(p => p.resumeConfirmed).length;
+  const allConfirmed = confirmedCount === totalPlayers;
+
+  if (allConfirmed) {
+    await db.game.update({
+      where: { id: gameId },
+      data: { status: 'RUNNING' },
+    });
+  }
+
+  return {
+    message: allConfirmed ? 'Spiel wird fortgesetzt.' : 'Fortsetzung bestätigt.',
+    resumeConfirmedCount: confirmedCount,
+    playerCount: totalPlayers,
+    allConfirmed,
+    status: allConfirmed ? 'RUNNING' : 'PAUSED',
   };
 }
 
@@ -739,6 +801,7 @@ module.exports = {
   transferMoney,
   receiveFromBank,
   pauseGame,
+  confirmResume,
   finishGame,
   getTransactions,
   resetGames,

@@ -1087,3 +1087,79 @@ test('POST /api/games/:id/finish mit Gleichstand ermittelt beide Sieger', async 
   assert.ok(res.body.winners.includes('finishTie2'));
   assert.ok(res.body.winners.includes('finishTie3'));
 });
+
+test('GET /api/games/mine listet Spielrunden des Spielers', async () => {
+  const t1 = await registerAndGetToken(app, 'mineTest1');
+  const t2 = await registerAndGetToken(app, 'mineTest2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+
+  const res = await request(app)
+    .get('/api/games/mine')
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.games.length, 1);
+  assert.equal(res.body.games[0].id, game.id);
+  assert.equal(res.body.games[0].status, 'LOBBY');
+  assert.equal(res.body.games[0].playerCount, 2);
+  assert.equal(res.body.games[0].resumeConfirmedCount, 0);
+});
+
+test('GET /api/games/mine ohne Auth wird abgewiesen', async () => {
+  const res = await request(app).get('/api/games/mine');
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/games/:id/confirm-resume setzt Spiel fort wenn alle bestätigt', async () => {
+  const t1 = await registerAndGetToken(app, 'resumeTest1');
+  const t2 = await registerAndGetToken(app, 'resumeTest2');
+  const t3 = await registerAndGetToken(app, 'resumeTest3');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+  await request(app).post(`/api/games/${game.id}/pause`).set(asUser(t1));
+
+  const r1 = await request(app)
+    .post(`/api/games/${game.id}/confirm-resume`)
+    .set(asUser(t1));
+  assert.equal(r1.status, 200);
+  assert.equal(r1.body.resumeConfirmedCount, 1);
+  assert.equal(r1.body.allConfirmed, false);
+  assert.equal(r1.body.status, 'PAUSED');
+
+  await request(app)
+    .post(`/api/games/${game.id}/confirm-resume`)
+    .set(asUser(t2));
+
+  const r3 = await request(app)
+    .post(`/api/games/${game.id}/confirm-resume`)
+    .set(asUser(t3));
+  assert.equal(r3.status, 200);
+  assert.equal(r3.body.allConfirmed, true);
+  assert.equal(r3.body.status, 'RUNNING');
+  assert.equal(r3.body.resumeConfirmedCount, 3);
+});
+
+test('POST /api/games/:id/confirm-resume doppelte Bestätigung wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'resumeDup1');
+  const t2 = await registerAndGetToken(app, 'resumeDup2');
+  const t3 = await registerAndGetToken(app, 'resumeDup3');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+  await request(app).post(`/api/games/${game.id}/pause`).set(asUser(t1));
+
+  await request(app)
+    .post(`/api/games/${game.id}/confirm-resume`)
+    .set(asUser(t1));
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/confirm-resume`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 409);
+  assert.equal(res.body.message, 'Du hast bereits bestätigt.');
+});
