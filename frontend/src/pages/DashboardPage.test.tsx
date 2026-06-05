@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 
@@ -8,6 +9,7 @@ const mockUser = { username: 'host1', birthDate: '2000-01-01' };
 
 const mockNavigate = vi.fn();
 const mockApiGet = vi.fn();
+const mockApiPost = vi.fn();
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -25,7 +27,7 @@ vi.mock('../contexts/AuthContext', () => ({
 }));
 
 vi.mock('../lib/api', () => ({
-  apiPost: vi.fn(),
+  apiPost: (...args: any[]) => mockApiPost(...args),
   apiGet: (...args: any[]) => mockApiGet(...args),
 }));
 
@@ -106,7 +108,7 @@ describe('DashboardPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Bank')).toBeInTheDocument();
+      expect(screen.getAllByText('Bank').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('11000 €')).toBeInTheDocument();
     });
   });
@@ -136,8 +138,8 @@ describe('DashboardPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('host1 (Du)')).toBeInTheDocument();
-      expect(screen.getByText('player1')).toBeInTheDocument();
-      expect(screen.getByText('player2')).toBeInTheDocument();
+      expect(screen.getAllByText('player1').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('player2').length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -182,5 +184,161 @@ describe('DashboardPage', () => {
 
     await screen.getByText('Zurück zur Lobby').click();
     expect(mockNavigate).toHaveBeenCalledWith('/lobby');
+  });
+
+  it('zeigt Überweisungs-Formular nach Laden an', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld senden')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Betrag')).toBeInTheDocument();
+      expect(screen.getByText('Senden')).toBeInTheDocument();
+      expect(screen.getAllByText('Bank').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('player1').length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('ruft API bei gültiger Überweisung auf', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      accounts: [
+        { userId: 'u1', username: 'host1', balance: 500 },
+        { userId: 'u2', username: 'player1', balance: 500 },
+      ],
+      bank: { balance: 11000 },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld senden')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getByPlaceholderText('Betrag');
+    await userEvent.type(amountInput, '100');
+
+    const sendButton = screen.getByText('Senden');
+    await userEvent.click(sendButton);
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith(
+        '/api/games/game-1/transfer',
+        { toUsername: '', amount: 100 },
+        'test-token'
+      );
+    });
+  });
+
+  it('zeigt Erfolgsmeldung nach Überweisung', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      accounts: [
+        { userId: 'u1', username: 'host1', balance: 500 },
+        { userId: 'u2', username: 'player1', balance: 500 },
+      ],
+      bank: { balance: 11000 },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld senden')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getByPlaceholderText('Betrag');
+    await userEvent.type(amountInput, '100');
+    await userEvent.click(screen.getByText('Senden'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Überweisung erfolgreich.')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Fehler bei fehlgeschlagener Überweisung', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+      },
+    });
+
+    mockApiPost.mockRejectedValueOnce({ message: 'Nicht genügend Guthaben.' });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld senden')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getByPlaceholderText('Betrag');
+    await userEvent.type(amountInput, '9999');
+    await userEvent.click(screen.getByText('Senden'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nicht genügend Guthaben.')).toBeInTheDocument();
+    });
   });
 });

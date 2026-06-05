@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -192,6 +192,23 @@ function createApp(options = {}) {
       res.status(200).json({
         message: 'Du hast die Runde verlassen.',
         ...result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/transfer', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await transferMoney({
+        gameId: req.params.id,
+        username: req.user.username,
+        toUsername: req.body.toUsername || '',
+        amount: req.body.amount,
+      });
+      res.status(200).json({
+        message: 'Überweisung erfolgreich.',
+        ...result,
       });
     } catch (error) {
       next(error);
