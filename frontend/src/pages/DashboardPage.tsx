@@ -3,35 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost } from '../lib/api';
 import PageShell from '../components/PageShell';
-
-interface Account {
-  userId: string;
-  username: string;
-  balance: number;
-}
-
-interface Game {
-  id: string;
-  host: string;
-  status: string;
-  players: { username: string; joinedAt: string }[];
-  startedAt?: string;
-  finishedAt?: string;
-  accounts: Account[];
-  bank: { balance: number } | null;
-  winners?: string[];
-}
-
-interface Transaction {
-  id: string;
-  amount: number;
-  type: string;
-  memo: string | null;
-  fromUsername: string | null;
-  toUsername: string | null;
-  createdAt: string;
-  runningBalance: number | null;
-}
+import type { Account, Game, GetGameResponse, Transaction, TransactionsResponse } from '../types/game';
 
 const TYPE_LABELS: Record<string, string> = {
   STARTING_CAPITAL: 'Startkapital',
@@ -160,9 +132,9 @@ export default function DashboardPage() {
   const loadGame = useCallback(async () => {
     if (!token || !id) return;
     try {
-      const data = await apiGet(`/api/games/${id}`, token);
+      const data = await apiGet(`/api/games/${id}`, token) as GetGameResponse;
       if (data.game) {
-        setGame(data.game as Game);
+        setGame(data.game);
       }
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message || 'Fehler beim Laden des Spielstands.';
@@ -175,7 +147,7 @@ export default function DashboardPage() {
   const loadTransactions = useCallback(async () => {
     if (!token || !id) return;
     try {
-      const data = await apiGet(`/api/games/${id}/transactions`, token) as { transactions: Transaction[] };
+      const data = await apiGet(`/api/games/${id}/transactions`, token) as TransactionsResponse;
       setTransactions(data.transactions);
     } catch (err) {
       console.warn('Transaktionen laden fehlgeschlagen:', err);
@@ -254,7 +226,7 @@ export default function DashboardPage() {
       {myAccount && (
         <div className="balance-card">
           <p className="balance-card__label">Dein Kontostand</p>
-          <p className="balance-card__amount">{myAccount.balance} Mark</p>
+          <p className="balance-card__amount">{myAccount.balance} Mark</p>
         </div>
       )}
 
@@ -262,7 +234,7 @@ export default function DashboardPage() {
         <div className={`balance-card balance-card--bank${game.bank.balance < 0 ? ' balance-card--negative' : ''}`}>
           <p className="balance-card__label" style={{ color: 'var(--color-muted)', fontWeight: 400 }}>Bank</p>
           <p className={`balance-card__amount balance-card__amount--bank${game.bank.balance < 0 ? ' balance-card__amount--negative' : ''}`}>
-            {game.bank.balance} Mark
+            {game.bank.balance} Mark
           </p>
         </div>
       )}
@@ -311,7 +283,7 @@ export default function DashboardPage() {
                   <td style={{ fontWeight: isMe ? 700 : 400 }}>
                     {isWinner ? '👑 ' : ''}{a.username}{isMe ? ' (Du)' : ''}
                   </td>
-                  <td className="data-table__right">{a.balance} Mark</td>
+                  <td className="data-table__right">{a.balance} Mark</td>
                 </tr>
               );
             })}
@@ -332,11 +304,13 @@ export default function DashboardPage() {
                 value={transferAmount}
                 onChange={e => { setTransferAmount(e.target.value); setTransferError(''); setTransferSuccess(''); }}
                 placeholder="Betrag"
+                aria-label="Überweisungsbetrag"
                 className="form-input"
               />
               <select
                 value={transferRecipient}
                 onChange={e => { setTransferRecipient(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                aria-label="Empfänger"
                 className="form-select"
               >
                 <option value="">Bank</option>
@@ -351,6 +325,7 @@ export default function DashboardPage() {
               value={transferMemo}
               onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
               placeholder="Verwendungszweck"
+              aria-label="Verwendungszweck"
               maxLength={100}
               className="form-input"
               style={{ marginBottom: '0.5rem' }}
@@ -365,7 +340,7 @@ export default function DashboardPage() {
               {transferLoading ? 'Wird gesendet…' : 'Senden'}
             </button>
 
-            {transferError && <p className="page-error" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{transferError}</p>}
+            {transferError && <p className="page-error" role="alert" aria-live="polite" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{transferError}</p>}
             {transferSuccess && <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>}
           </div>
 

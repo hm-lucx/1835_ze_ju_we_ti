@@ -236,7 +236,7 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       const hostRow = screen.getByText('host1 (Du)').closest('tr');
       expect(hostRow).toBeTruthy();
-      expect(hostRow!.textContent).toContain('600\u202fMark');
+      expect(hostRow!.textContent).toContain('600 Mark');
     });
   });
 

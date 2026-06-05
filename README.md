@@ -1,224 +1,158 @@
 # 🚂 1835 – Digitales Spielbegleitsystem
 
-> Ein webbasiertes Begleitsystem für das Brettspiel **1835** – verwaltet Aktien, Spielstände, Züge und Gesellschaften direkt am Tisch, optimiert für Tablets.
+> Ein webbasiertes Begleitsystem für das Brettspiel **1835** – verwaltet Konten, Spielstände und Geldtransfers direkt am Tisch, optimiert für Tablets.
 
 ---
 
 ## Quick Start
 
-### 1. Datenbank starten (PostgreSQL via Docker)
+### 1. Datenbank starten
 
 ```bash
-# Einmalig starten (Port 5432)
-docker run -d --name 1835-postgres \
-  -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=dev \
-  -e POSTGRES_DB=1835 -p 5432:5432 postgres:16-alpine
+docker compose up -d
+# oder einmalig:
+npm run db:start
+```
 
-# Migration einspielen (Tabellen anlegen)
+### 2. Abhängigkeiten & Migration
+
+```bash
+npm install
+cp .env.example .env   # DATABASE_URL und JWT_SECRET anpassen
 DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" npm run db:migrate
 ```
 
-### 2. Backend starten (Port 3000)
+### 3. Backend starten (Port 3000)
 
 ```bash
 DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" npm start
 ```
 
-### 3. Frontend starten (Port 5173)
+### 4. Frontend starten (Port 5173)
 
 ```bash
-cd frontend && npx vite
+cd frontend && npm install && npx vite
 ```
 
 Dann im Browser öffnen: **http://localhost:5173**
 
-### 4. Testen
+> Das Frontend proxied `/api` → `localhost:3000` (Vite-Config). Beide Server müssen parallel laufen.
+
+### 5. Testen
 
 ```bash
-# Backend-Tests (ohne DB)
-npm test
-
-# Backend-Tests mit DB
+# Backend (mit DB, sequentiell wegen Shared-DB)
 DATABASE_URL="postgresql://dev:dev@localhost:5432/1835" \
-  node --test --test-concurrency=1 'test/*.test.js'
+  node --test --test-concurrency=1 test/auth.test.js test/game.test.js
 
-# Frontend-Tests
-cd frontend && npx vitest run
+# Frontend
+cd frontend && npx tsc --noEmit && npm run lint && npx vitest run
 ```
 
 ---
 
 ## Überblick
 
-**1835** ist ein komplexes Eisenbahn-Aktienspiel, das in der deutschen Gründerzeit (um 1835) angesiedelt ist. Dieses Projekt digitalisiert die Spielverwaltung: Konten, Aktienbesitz, Gesellschaften, Phasen und Regelabläufe – damit der Fokus am Tisch auf der Strategie liegt, nicht auf der Buchhaltung.
+**1835** ist ein komplexes Eisenbahn-Aktienspiel. Dieses Projekt digitalisiert die Spielverwaltung: Konten, Geldtransfers, Lobby, Pause/Fortsetzen und Leaderboard – damit der Fokus am Tisch auf der Strategie liegt.
 
-Der aktuelle Stand ist ein **Web-First-Grundgerüst**, das als responsive Browser-Anwendung startet und bewusst so dokumentiert ist, dass eine spätere Migration auf eine App-Hülle (z. B. React Native oder Capacitor) möglich bleibt.
+Der aktuelle Stand ist ein **Web-First-Grundgerüst** (responsive Browser-App), das bewusst API-getrieben aufgebaut ist, damit eine spätere App-Hülle (z. B. Capacitor) möglich bleibt.
 
-### Kernfunktionen
+### Kernfunktionen (implementiert)
 
-- 🔐 **Authentifizierung** – Registrierung, Login, Passwort-Reset per E-Mail
-- 🎮 **Spielverwaltung** – Runden erstellen, Spieler per QR-Code/Link einladen
-- 📊 **Dashboard** – Kontostand, Aktienbesitz, Ranking, Direktor-Status
-- 🏦 **Bank & Aktien** – Kauf/Verkauf mit regelkonformer Phasenlogik
-- 🔄 **Rundenablauf** – Aktienrunde → Operationsrunde nach 1835-Regelwerk
-- 💾 **Spielstand speichern** – inkl. Foto-Upload von Board und Bank
-- ⏸️ **Pause-Funktion** – Spiel unterbrechen und fortsetzen
+- 🔐 **Authentifizierung** – Registrierung, Login, Passwort-Reset
+- 🎮 **Spielverwaltung** – Runden erstellen, per QR-Code/Link/Code einladen, eigene Rundenliste
+- 📊 **Dashboard** – Kontostand, Leaderboard, Transaktionshistorie
+- 💸 **Geldtransfers** – Spieler-zu-Spieler und Spieler-zu-Bank, Bankeinzahlungen
+- ⏸️ **Pause-Funktion** – Spiel unterbrechen und mit Bestätigung aller Spieler fortsetzen
+- 🏁 **Spiel beenden** – Siegerermittlung bei Gleichstand
+
+### Noch nicht implementiert
+
+- Aktienhandel, Operationsrunde, Echtzeit-WebSockets, Foto-Upload von Spielständen
 
 ---
 
-## Tech Stack
+## Tech Stack (Ist-Zustand)
 
 | Bereich | Technologie |
 |---|---|
-| Frontend | React 18 + Vite (TypeScript) |
-| Styling | Tailwind CSS |
-| Backend | Node.js + Express (TypeScript) |
-| Datenbank | PostgreSQL via Prisma ORM |
-| Echtzeit | Socket.io |
-| Authentifizierung | JWT + bcrypt |
-| E-Mail | Resend (oder Nodemailer + SMTP) |
-| Datei-Upload | Cloudinary (oder lokaler S3-kompatibler Store) |
-| Testing | Vitest + Supertest |
-| CI/CD | GitHub Actions |
+| Frontend | React 19 + Vite 6 + TypeScript (ESM) |
+| Styling | Plain CSS (`frontend/src/styles/`) |
+| State | React Context (`AuthContext`), lokaler `useState` |
+| API-Client | `fetch` via `frontend/src/lib/api.ts` |
+| Backend | Node.js 20 + Express 5 (CommonJS) |
+| Datenbank | PostgreSQL via Prisma ORM v7 |
+| Auth | JWT + bcryptjs |
+| Testing | Node `--test` + Supertest (Backend), Vitest (Frontend) |
+| CI | GitHub Actions (Backend-Tests, `tsc`, ESLint, Vitest, Build) |
+
+> **Hinweis:** `ARCHITECTURE.md` beschreibt frühere Planungsziele (Tailwind, Socket.io, Zustand, React Query, Zod). Diese Bibliotheken sind **nicht** im Einsatz.
 
 ---
 
 ## Projektstruktur
 
 ```
-1835/
-├── frontend/               # React-App (Vite + TypeScript)
-│   ├── src/
-│   │   ├── components/     # Wiederverwendbare UI-Komponenten
-│   │   ├── pages/          # Seiten (Login, Lobby, Dashboard, ...)
-│   │   ├── hooks/          # Custom React Hooks
-│   │   ├── store/          # Zustand (z.B. Zustand oder Redux)
-│   │   └── socket/         # Socket.io Client-Setup
-│   └── ...
-│
-├── backend/                # Express-Server (TypeScript)
-│   ├── src/
-│   │   ├── routes/         # API-Routen
-│   │   ├── controllers/    # Request-Handler
-│   │   ├── services/       # Geschäftslogik
-│   │   ├── game/           # Spiellogik & State Machine
-│   │   ├── models/         # Prisma-Modelle
-│   │   └── socket/         # Socket.io Server-Events
-│   └── ...
-│
-├── shared/                 # Gemeinsame Typen & Konstanten
-│   ├── types/              # TypeScript-Interfaces
-│   └── constants/          # Spielkonstanten (Startkapital, Phasen, ...)
-│
-├── prisma/                 # Datenbankschema & Migrationen
-│   └── schema.prisma
-│
-├── .github/
-│   ├── copilot-instructions.md   # Copilot Agent Kontext
-│   ├── workflows/                # CI/CD Pipelines
-│   └── ISSUE_TEMPLATE/           # Issue-Templates
-│
-├── docs/                   # Dokumentation
-│   ├── ARCHITECTURE.md
-│   ├── state-machine.md    # Spielablauf als State Machine
-│   └── rules-summary.md    # 1835-Regelwerk-Zusammenfassung
-│
-├── README.md
-└── docker-compose.yml      # Lokale Entwicklungsumgebung
-```
-
----
-
-## Lokales Setup
-
-### Voraussetzungen
-
-- Ein Browser (Chrome, Safari oder Firefox)
-- Optional: Python 3 für einen lokalen Static-Server
-
-### Installation
-
-```bash
-# Repository klonen
-git clone https://github.com/hm-lucx/1835_ze_ju_we_ti.git
-cd 1835_ze_ju_we_ti
-
-# Option A: direkt öffnen
-open index.html
-
-# Option B: lokaler Server (empfohlen)
-python3 -m http.server 4173
-# dann im Browser öffnen: http://localhost:4173
-
-# Option C: Auth-API lokal starten
-npm install
-npm test
-npm start
-```
-
-### Deployment (statisch)
-
-```bash
-# Beispiel: Build-Artefakte sind die statischen Dateien im Repo
-# (index.html + styles.css)
-# Diese können direkt auf Netlify, Vercel (Static), GitHub Pages oder einem beliebigen Webserver deployed werden.
+1835_ze_ju_we_ti/
+├── src/                    # Backend (Express, CommonJS)
+│   ├── server.js           # Einstiegspunkt
+│   ├── app.js              # Routen & Middleware
+│   ├── authService.js
+│   ├── gameService.js      # Spiellogik (Single Source of Truth)
+│   └── lib/db.js           # Prisma oder In-Memory-Fallback
+├── frontend/               # React-App (Vite + TypeScript, ESM)
+│   └── src/
+│       ├── pages/          # Login, Lobby, Dashboard, Join, …
+│       ├── components/     # AppHeader, PageShell, Auth-UI
+│       ├── contexts/       # AuthContext
+│       ├── lib/api.ts      # API-Client
+│       ├── types/          # Geteilte API-Typen
+│       └── styles/         # layout.css, tokens
+├── prisma/                 # Schema & Migrationen
+├── test/                   # Backend-Tests (node --test)
+└── .github/workflows/      # CI
 ```
 
 ---
 
 ## Umgebungsvariablen
 
-Erstelle `backend/.env` anhand der `.env.example`:
+Kopiere `.env.example` nach `.env` im **Projektroot** (nicht `backend/`):
 
 ```env
-# Datenbank
-DATABASE_URL="postgresql://user:password@localhost:5432/1835"
-
-# Authentifizierung
-JWT_SECRET="dein-geheimer-schluessel"
+DATABASE_URL="postgresql://dev:dev@localhost:5432/1835"
+JWT_SECRET="change-me-in-production"
 JWT_EXPIRES_IN="7d"
-
-# E-Mail (Resend)
-RESEND_API_KEY="re_..."
-EMAIL_FROM="noreply@deinedomain.de"
-
-# Datei-Upload
-CLOUDINARY_URL="cloudinary://..."
-
-# App
 NODE_ENV="development"
 PORT=3000
 FRONTEND_URL="http://localhost:5173"
 ```
 
----
+**Produktion (Render):** `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `NODE_ENV=production`, `PORT=10000`, `FRONTEND_URL`
 
-## Spielregeln & Kontext
+**Produktion (Vercel Frontend):** `VITE_API_URL=https://one835-ze-ju-we-ti.onrender.com`
 
-Dieses System implementiert die Spielregeln des Brettspiels **1835** von Francis Tresham. Eine Zusammenfassung der relevanten Regelabläufe (Aktienrunde, Operationsrunde, Phasenwechsel) findet sich in [`docs/rules-summary.md`](docs/rules-summary.md).
-
----
-
-## Entwicklung mit GitHub Copilot
-
-Dieses Projekt nutzt **GitHub Copilot Agents** für die Entwicklung. Jedes Feature ist als GitHub Issue strukturiert. Konventionen und Architektur-Entscheidungen sind in [`.github/copilot-instructions.md`](.github/copilot-instructions.md) dokumentiert.
-
-**Workflow:**
-1. Issue öffnen
-2. Copilot Agent zuweisen (`@copilot` oder „Assign to Copilot")
-3. Automatisch erstellten PR reviewen
-4. Feedback als Issue-Kommentar → Copilot iteriert
-5. Nach Approval: Merge
+Ohne `DATABASE_URL` fällt das Backend auf In-Memory-Maps zurück (nur für lokale Schnelltests).
 
 ---
 
-## Mitspielen (Spieler-Anleitung)
+## Deployment
 
-1. Registrierung unter `[URL]` (Mindestalter: 16 Jahre)
-2. Host erstellt eine neue Spielrunde und teilt den QR-Code
-3. Mitspieler scannen den Code und treten der Runde bei (3–7 Spieler)
-4. Host startet das Spiel → Startkapital wird automatisch verteilt
-5. Das Dashboard führt durch alle Runden und Phasen
+| Service | Hosting | Build/Start |
+|---|---|---|
+| Backend | Render | `npm ci && npx prisma generate` → `npx prisma migrate deploy && node src/server.js` |
+| Frontend | Vercel | `npx vite build` (Root: `frontend/`) |
+| Datenbank | Neon (PostgreSQL) | – |
+
+Render Free Tier: Backend schläft nach 15 Min Inaktivität ein (~30–60s Kaltstart). Health Check: `/health`
+
+---
+
+## Entwicklung
+
+- Alle Features werden über **GitHub Issues** und Pull Requests in `main` geliefert.
+- Agent-Konventionen: siehe `AGENTS.md` im übergeordneten Repo-Ordner.
+- Architektur-Details: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
