@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
           autoComplete="new-password"
         />
         {error && (
-          <p style={{ color: 'var(--color-error)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+          <p role="alert" aria-live="polite" style={{ color: 'var(--color-error)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
             {error}
           </p>
         )}

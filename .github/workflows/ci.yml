@@ -59,6 +59,10 @@ jobs:
         working-directory: frontend
         run: npx tsc --noEmit
 
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
       - name: Run frontend tests
         working-directory: frontend
         run: npx vitest run

@@ -1,45 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiPost, apiGet, apiDelete } from '../lib/api';
 import PageShell from '../components/PageShell';
-
-interface Player {
-  username: string;
-  joinedAt: string;
-  resumeConfirmed?: boolean;
-}
-
-interface Account {
-  userId: string;
-  username: string;
-  balance: number;
-}
-
-interface Game {
-  id: string;
-  host: string;
-  status: string;
-  players: Player[];
-  inviteCode: string;
-  inviteLink: string;
-  inviteLinkShort: string;
-  qrCodeSvg?: string;
-  startedAt?: string;
-  createdAt: string;
-  accounts?: Account[];
-  bank?: { balance: number } | null;
-}
-
-interface GameSummary {
-  id: string;
-  host: string;
-  status: string;
-  createdAt: string;
-  startedAt?: string;
-  playerCount: number;
-  resumeConfirmedCount: number;
-}
+import type { CreateGameResponse, Game, GameSummary, JoinRoundResponse, MyGamesResponse } from '../types/game';
 
 const MIN_PLAYERS = 3;
 
@@ -62,6 +26,7 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function LobbyPage() {
+  const joinCodeId = useId();
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -80,7 +45,7 @@ export default function LobbyPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost('/api/games', undefined, token);
+      const data = await apiPost('/api/games', undefined, token) as CreateGameResponse;
       if (data.game) {
         setGame(data.game);
       } else {
@@ -103,7 +68,7 @@ export default function LobbyPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost('/api/rounds/join', { inviteCode: code[0].toUpperCase() }, token) as { roundId: string };
+      const data = await apiPost('/api/rounds/join', { inviteCode: code[0].toUpperCase() }, token) as JoinRoundResponse;
       navigate(`/lobby?game=${data.roundId}`);
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message || 'Beitritt fehlgeschlagen.';
@@ -166,7 +131,7 @@ export default function LobbyPage() {
   }
 
   function handleCopyLink() {
-    if (!game) return;
+    if (!game?.inviteLinkShort) return;
     navigator.clipboard.writeText(game.inviteLinkShort);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -189,7 +154,7 @@ export default function LobbyPage() {
   const loadMyGames = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await apiGet('/api/games/mine', token) as { games: GameSummary[] };
+      const data = await apiGet('/api/games/mine', token) as MyGamesResponse;
       setMyGames(data.games || []);
     } catch {
       // ignore
@@ -230,7 +195,7 @@ export default function LobbyPage() {
     }
     if (!token) return;
     apiGet('/api/games/mine', token).then((res) => {
-      const games = (res as { games: GameSummary[] }).games;
+      const games = (res as MyGamesResponse).games;
       if (games.length === 1 && games[0]) {
         const g = games[0];
         if (g.status === 'RUNNING') {
@@ -356,13 +321,15 @@ export default function LobbyPage() {
 
       {!game && joinMode && (
         <div style={{ marginTop: '1rem' }}>
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text)', textAlign: 'center' }}>
+          <label htmlFor={joinCodeId} style={{ display: 'block', margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text)', textAlign: 'center' }}>
             Einladungscode eingeben:
-          </p>
+          </label>
           <div className="form-row form-row--nowrap">
             <input
+              id={joinCodeId}
               type="text"
               placeholder="z.B. A3F7K2"
+              aria-label="Einladungscode"
               value={joinCode}
               onChange={e => setJoinCode(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleJoinRound()}
@@ -495,7 +462,7 @@ export default function LobbyPage() {
       )}
 
       {error && (
-        <p className="page-error" style={{ marginTop: '0.5rem' }}>
+        <p className="page-error" role="alert" aria-live="polite" style={{ marginTop: '0.5rem' }}>
           {error}
         </p>
       )}

@@ -1240,3 +1240,124 @@ test('DELETE /api/games/:id im RUNNING-Status wird abgewiesen', async () => {
   assert.equal(res.status, 400);
   assert.equal(res.body.message, 'Nur Runden in der Lobby können gelöscht werden.');
 });
+
+test('POST /api/games/:id/leave entfernt Nicht-Host aus Lobby', async () => {
+  const t1 = await registerAndGetToken(app, 'leavePlayer1');
+  const t2 = await registerAndGetToken(app, 'leavePlayer2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/leave`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.message, 'Du hast die Runde verlassen.');
+  assert.equal(res.body.host, 'leavePlayer1');
+  assert.equal(res.body.players.length, 1);
+  assert.equal(res.body.players[0].username, 'leavePlayer1');
+});
+
+test('POST /api/games/:id/leave übergibt Host-Rolle an verbleibenden Spieler', async () => {
+  const t1 = await registerAndGetToken(app, 'leaveHost1');
+  const t2 = await registerAndGetToken(app, 'leaveHost2');
+  const t3 = await registerAndGetToken(app, 'leaveHost3');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/leave`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.host, 'leaveHost2');
+  assert.equal(res.body.players.length, 2);
+  assert.ok(res.body.players.some(p => p.username === 'leaveHost2'));
+  assert.ok(res.body.players.some(p => p.username === 'leaveHost3'));
+
+  const getRes = await request(app)
+    .get(`/api/games/${game.id}`)
+    .set(asUser(t2));
+  assert.equal(getRes.body.game.host, 'leaveHost2');
+});
+
+test('POST /api/games/:id/leave löscht Runde wenn letzter Spieler geht', async () => {
+  const t1 = await registerAndGetToken(app, 'leaveLast1');
+  const { game } = await createAndGetInviteToken(app, t1);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/leave`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.deleted, true);
+
+  const getRes = await request(app)
+    .get(`/api/games/${game.id}`)
+    .set(asUser(t1));
+  assert.equal(getRes.status, 404);
+});
+
+test('POST /api/games/:id/leave im RUNNING-Status wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'leaveRun1');
+  const t2 = await registerAndGetToken(app, 'leaveRun2');
+  const t3 = await registerAndGetToken(app, 'leaveRun3');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/leave`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.message, 'Spiel läuft bereits – Austritt nicht möglich.');
+});
+
+test('POST /api/games/:id/leave als Nicht-Teilnehmer wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'leaveDenyHost');
+  const t2 = await registerAndGetToken(app, 'leaveDenyOther');
+  const { game } = await createAndGetInviteToken(app, t1);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/leave`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 403);
+  assert.equal(res.body.message, 'Du bist nicht in dieser Runde.');
+});
+
+test('POST /api/games/:id/transfer parallele Überweisungen überziehen nicht das Guthaben', async () => {
+  const t1 = await registerAndGetToken(app, 'raceSender');
+  const t2 = await registerAndGetToken(app, 'raceReceiver');
+  const t3 = await registerAndGetToken(app, 'raceBystander');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const [res1, res2] = await Promise.all([
+    request(app)
+      .post(`/api/games/${game.id}/transfer`)
+      .set(asUser(t1))
+      .send({ toUsername: 'raceReceiver', amount: 400 }),
+    request(app)
+      .post(`/api/games/${game.id}/transfer`)
+      .set(asUser(t1))
+      .send({ toUsername: 'raceReceiver', amount: 400 }),
+  ]);
+
+  const statuses = [res1.status, res2.status].sort();
+  assert.deepEqual(statuses, [200, 400]);
+
+  const success = res1.status === 200 ? res1 : res2;
+  const failure = res1.status === 400 ? res1 : res2;
+  assert.equal(failure.body.message, 'Nicht genügend Guthaben.');
+
+  const senderAccount = success.body.accounts.find(a => a.username === 'raceSender');
+  const receiverAccount = success.body.accounts.find(a => a.username === 'raceReceiver');
+  assert.equal(senderAccount.balance, 200);
+  assert.equal(receiverAccount.balance, 1000);
+});
