@@ -1,6 +1,3 @@
--- AlterTable
-ALTER TABLE "Game" ALTER COLUMN "inviteCode" DROP DEFAULT;
-
 -- CreateTable
 CREATE TABLE "BankAccount" (
     "id" TEXT NOT NULL,
