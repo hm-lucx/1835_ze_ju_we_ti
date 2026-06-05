@@ -710,3 +710,74 @@ test('POST /api/games/:id/transfer nicht-existenter Empfänger', async () => {
   assert.equal(transferRes.status, 404);
   assert.equal(transferRes.body.message, 'Empfänger nicht gefunden.');
 });
+
+test('POST /api/games/:id/receive-from-bank erfolgreich', async () => {
+  const t1 = await registerAndGetToken(app, 'recvHost');
+  const t2 = await registerAndGetToken(app, 'recvOther');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'recvThird'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const bankBefore = (await request(app).get(`/api/games/${game.id}`).set(asUser(t1))).body.game.bank.balance;
+
+  const receiveRes = await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 150 });
+
+  assert.equal(receiveRes.status, 200);
+  assert.equal(receiveRes.body.message, 'Geld von Bank empfangen.');
+  const senderAccount = receiveRes.body.accounts.find(a => a.username === 'recvHost');
+  assert.equal(senderAccount.balance, 750); // 600 + 150
+  assert.equal(receiveRes.body.bank.balance, bankBefore - 150);
+
+  const prisma = require('../src/lib/prisma');
+  const tx = await prisma.transaction.findFirst({
+    where: { gameId: game.id, type: 'RECEIVE_FROM_BANK' },
+    orderBy: { createdAt: 'desc' },
+  });
+  assert.ok(tx);
+  assert.equal(tx.amount, 150);
+  assert.equal(tx.fromId, null);
+  assert.equal(tx.toId, senderAccount.userId);
+});
+
+test('POST /api/games/:id/receive-from-bank ungültiger Betrag', async () => {
+  const t1 = await registerAndGetToken(app, 'badRecv');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'badRecv2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'badRecv3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const zeroRes = await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 0 });
+  assert.equal(zeroRes.status, 400);
+  assert.equal(zeroRes.body.message, 'Betrag muss eine positive ganze Zahl sein.');
+});
+
+test('POST /api/games/:id/receive-from-bank ohne Auth wird abgewiesen', async () => {
+  const res = await request(app)
+    .post('/api/games/some-id/receive-from-bank')
+    .send({ amount: 100 });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/games/:id/receive-from-bank Bank darf negativ werden', async () => {
+  const t1 = await registerAndGetToken(app, 'negBank');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'negBank2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'negBank3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const hugeAmount = 999999;
+  const receiveRes = await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: hugeAmount });
+
+  assert.equal(receiveRes.status, 200);
+  assert.ok(receiveRes.body.bank.balance < 0);
+});
