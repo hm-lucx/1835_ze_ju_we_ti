@@ -143,6 +143,135 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('sortiert Spieler absteigend nach Kontostand', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+          { username: 'player2', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 300 },
+          { userId: 'u2', username: 'player1', balance: 600 },
+          { userId: 'u3', username: 'player2', balance: 400 },
+        ],
+        bank: { balance: 10700 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole('row');
+      const cells = rows.map(r => r.textContent);
+      const playerRow = cells.find(c => c?.includes('player1'));
+      const hostRow = cells.find(c => c?.includes('host1'));
+      const player2Row = cells.find(c => c?.includes('player2'));
+      expect(playerRow).toBeTruthy();
+      expect(hostRow).toBeTruthy();
+      expect(player2Row).toBeTruthy();
+      const tableRows = rows.slice(1, 4);
+      expect(tableRows[0]?.textContent).toContain('player1');
+      expect(tableRows[1]?.textContent).toContain('player2');
+      expect(tableRows[2]?.textContent).toContain('host1');
+    });
+  });
+
+  it('zeigt Rangposition an', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+          { username: 'player2', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 300 },
+          { userId: 'u2', username: 'player1', balance: 600 },
+          { userId: 'u3', username: 'player2', balance: 400 },
+        ],
+        bank: { balance: 10700 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('1.')).toBeInTheDocument();
+      expect(screen.getByText('2.')).toBeInTheDocument();
+      expect(screen.getByText('3.')).toBeInTheDocument();
+    });
+  });
+
+  it('eigene Zeile hebt sich visuell ab', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      const hostRow = screen.getByText('host1 (Du)').closest('tr');
+      expect(hostRow).toBeTruthy();
+      expect(hostRow!.textContent).toContain('600\u202fMark');
+    });
+  });
+
+  it('bei Gleichstand alphabetisch sortiert', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'alice',
+        status: 'RUNNING',
+        players: [
+          { username: 'alice', joinedAt: new Date().toISOString() },
+          { username: 'bob', joinedAt: new Date().toISOString() },
+          { username: 'charlie', joinedAt: new Date().toISOString() },
+        ],
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'alice', balance: 500 },
+          { userId: 'u2', username: 'bob', balance: 500 },
+          { userId: 'u3', username: 'charlie', balance: 300 },
+        ],
+        bank: { balance: 10700 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole('row');
+      const tableRows = rows.slice(1, 4);
+      expect(tableRows[0]?.textContent).toContain('alice');
+      expect(tableRows[1]?.textContent).toContain('bob');
+      expect(tableRows[2]?.textContent).toContain('charlie');
+    });
+  });
+
   it('zeigt Fehler bei API-Fehler', async () => {
     mockApiGet.mockRejectedValueOnce({ message: 'Spiel nicht gefunden.' });
 
