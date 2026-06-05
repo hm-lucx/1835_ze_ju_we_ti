@@ -77,6 +77,8 @@ export default function LobbyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [joinMode, setJoinMode] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
 
   async function handleCreateGame() {
     if (!token) return;
@@ -91,6 +93,26 @@ export default function LobbyPage() {
       }
     } catch (err: unknown) {
       setError((err as { message?: string }).message || 'Fehler beim Erstellen der Runde.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleJoinRound() {
+    if (!token) return;
+    const code = joinCode.trim().match(/[A-Z0-9]{6}$/i);
+    if (!code) {
+      setError('Bitte gib einen gültigen 6-stelligen Code ein.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiPost('/api/rounds/join', { inviteCode: code[0].toUpperCase() }, token) as { roundId: string };
+      navigate(`/lobby?game=${data.roundId}`);
+    } catch (err: unknown) {
+      const msg = (err as { message?: string }).message || 'Beitritt fehlgeschlagen.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -189,14 +211,80 @@ export default function LobbyPage() {
           </button>
         </p>
 
-        {!game && (
-          <button
-            onClick={handleCreateGame}
-            disabled={loading}
-            style={{ ...buttonStyle, opacity: loading ? 0.5 : 1 }}
-          >
-            {loading ? 'Wird erstellt…' : 'Neue Runde erstellen'}
-          </button>
+        {!game && !joinMode && (
+          <>
+            <button
+              onClick={handleCreateGame}
+              disabled={loading}
+              style={{ ...buttonStyle, opacity: loading ? 0.5 : 1 }}
+            >
+              {loading ? 'Wird erstellt…' : 'Neue Runde erstellen'}
+            </button>
+            <button
+              onClick={() => { setJoinMode(true); setError(''); }}
+              style={{
+                ...buttonStyle,
+                marginTop: '0.75rem',
+                backgroundColor: 'transparent',
+                border: '1px solid var(--color-accent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              Runde beitreten
+            </button>
+          </>
+        )}
+
+        {!game && joinMode && (
+          <div style={{ marginTop: '1rem' }}>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text)', textAlign: 'center' }}>
+              Einladungscode eingeben:
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="z.B. A3F7K2"
+                value={joinCode}
+                onChange={e => setJoinCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleJoinRound()}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '1rem',
+                  backgroundColor: 'var(--color-bg)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                  textTransform: 'uppercase',
+                }}
+                autoFocus
+              />
+              <button
+                onClick={handleJoinRound}
+                disabled={loading}
+                style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
+              >
+                {loading ? '…' : 'Beitreten'}
+              </button>
+            </div>
+            <button
+              onClick={() => { setJoinMode(false); setJoinCode(''); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-muted)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0,
+                font: 'inherit',
+                display: 'block',
+                margin: '0.5rem auto 0',
+                fontSize: '0.85rem',
+              }}
+            >
+              Abbrechen
+            </button>
+          </div>
         )}
 
         {game && (

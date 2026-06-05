@@ -90,7 +90,7 @@ export default function JoinPage() {
           <>
             <p style={{ color: 'var(--color-error)' }}>{message}</p>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/lobby')}
               style={{ marginTop: '1rem', padding: '0.75rem 2rem', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, color: '#1a1410', backgroundColor: 'var(--color-accent)', border: 'none', cursor: 'pointer' }}
             >
               Zum Dashboard
