@@ -123,6 +123,7 @@ enum TransactionType {
   STARTING_CAPITAL
   PAYOFF
   PLAYER_TRANSFER
+  RECEIVE_FROM_BANK
 }
 
 model Transaction {

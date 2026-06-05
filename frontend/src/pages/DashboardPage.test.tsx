@@ -209,7 +209,7 @@ describe('DashboardPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Geld senden')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Betrag')).toBeInTheDocument();
+      expect(screen.getAllByPlaceholderText('Betrag').length).toBe(2);
       expect(screen.getByText('Senden')).toBeInTheDocument();
       expect(screen.getAllByText('Bank').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('player1').length).toBeGreaterThanOrEqual(1);
@@ -249,7 +249,7 @@ describe('DashboardPage', () => {
       expect(screen.getByText('Geld senden')).toBeInTheDocument();
     });
 
-    const amountInput = screen.getByPlaceholderText('Betrag');
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[0]!;
     await userEvent.type(amountInput, '100');
 
     const sendButton = screen.getByText('Senden');
@@ -297,7 +297,7 @@ describe('DashboardPage', () => {
       expect(screen.getByText('Geld senden')).toBeInTheDocument();
     });
 
-    const amountInput = screen.getByPlaceholderText('Betrag');
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[0]!;
     await userEvent.type(amountInput, '100');
     await userEvent.click(screen.getByText('Senden'));
 
@@ -333,12 +333,154 @@ describe('DashboardPage', () => {
       expect(screen.getByText('Geld senden')).toBeInTheDocument();
     });
 
-    const amountInput = screen.getByPlaceholderText('Betrag');
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[0]!;
     await userEvent.type(amountInput, '9999');
     await userEvent.click(screen.getByText('Senden'));
 
     await waitFor(() => {
       expect(screen.getByText('Nicht genügend Guthaben.')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Geld von Bank empfangen Formular', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld von Bank empfangen')).toBeInTheDocument();
+      expect(screen.getByText('Empfangen')).toBeInTheDocument();
+    });
+  });
+
+  it('ruft receive-from-bank API bei gültigem Betrag auf', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      accounts: [{ userId: 'u1', username: 'host1', balance: 700 }],
+      bank: { balance: 11300 },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld von Bank empfangen')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[1]!;
+    await userEvent.type(amountInput, '100');
+    await userEvent.click(screen.getByText('Empfangen'));
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith(
+        '/api/games/game-1/receive-from-bank',
+        { amount: 100 },
+        'test-token'
+      );
+    });
+  });
+
+  it('zeigt Erfolgsmeldung nach Empfang von Bank', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      accounts: [{ userId: 'u1', username: 'host1', balance: 700 }],
+      bank: { balance: 11300 },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld von Bank empfangen')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[1]!;
+    await userEvent.type(amountInput, '100');
+    await userEvent.click(screen.getByText('Empfangen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld von Bank empfangen.')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Fehler bei fehlgeschlagenem Empfang', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: 11400 },
+      },
+    });
+
+    mockApiPost.mockReset();
+    mockApiPost.mockRejectedValue({ message: 'Auszahlung fehlgeschlagen.' });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Geld von Bank empfangen')).toBeInTheDocument();
+    });
+
+    const amountInput = screen.getAllByPlaceholderText('Betrag')[1]!;
+    await userEvent.type(amountInput, '100');
+    await userEvent.click(screen.getByText('Empfangen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Auszahlung fehlgeschlagen.')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Bank negativ rot an', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [{ username: 'host1', joinedAt: new Date().toISOString() }],
+        startedAt: new Date().toISOString(),
+        accounts: [{ userId: 'u1', username: 'host1', balance: 600 }],
+        bank: { balance: -500 },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('-500 €')).toBeInTheDocument();
     });
   });
 });

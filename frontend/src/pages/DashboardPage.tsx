@@ -98,6 +98,10 @@ export default function DashboardPage() {
   const [transferError, setTransferError] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState('');
+  const [receiveAmount, setReceiveAmount] = useState('');
+  const [receiveError, setReceiveError] = useState('');
+  const [receiveLoading, setReceiveLoading] = useState(false);
+  const [receiveSuccess, setReceiveSuccess] = useState('');
 
   async function handleTransfer() {
     if (!token || !id || !myAccount) return;
@@ -122,6 +126,28 @@ export default function DashboardPage() {
       setTransferError((err as { message?: string }).message || 'Überweisung fehlgeschlagen.');
     } finally {
       setTransferLoading(false);
+    }
+  }
+
+  async function handleReceiveFromBank() {
+    if (!token || !id) return;
+    const amount = parseInt(receiveAmount, 10);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setReceiveError('Betrag muss eine positive ganze Zahl sein.');
+      return;
+    }
+    setReceiveLoading(true);
+    setReceiveError('');
+    setReceiveSuccess('');
+    try {
+      const data = await apiPost(`/api/games/${id}/receive-from-bank`, { amount }, token) as { accounts: Account[]; bank: { balance: number } };
+      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank } : null);
+      setReceiveAmount('');
+      setReceiveSuccess('Geld von Bank empfangen.');
+    } catch (err: unknown) {
+      setReceiveError((err as { message?: string }).message || 'Auszahlung fehlgeschlagen.');
+    } finally {
+      setReceiveLoading(false);
     }
   }
 
@@ -216,9 +242,9 @@ export default function DashboardPage() {
         )}
 
         {game.bank && (
-          <div style={{ ...balanceCardStyle, borderColor: 'var(--color-border)', marginBottom: '1.5rem' }}>
+          <div style={{ ...balanceCardStyle, borderColor: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-border)', marginBottom: '1.5rem' }}>
             <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)' }}>Bank</p>
-            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: 'var(--color-text)' }}>{game.bank.balance} €</p>
+            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} €</p>
           </div>
         )}
 
@@ -299,6 +325,48 @@ export default function DashboardPage() {
           )}
           {transferSuccess && (
             <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>
+          )}
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld von Bank empfangen</p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              type="number"
+              min={1}
+              value={receiveAmount}
+              onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+              placeholder="Betrag"
+              style={{
+                flex: 1,
+                padding: '0.5rem',
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.9rem',
+                backgroundColor: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleReceiveFromBank}
+            disabled={receiveLoading || !receiveAmount}
+            style={{
+              ...buttonStyle,
+              opacity: receiveLoading || !receiveAmount ? 0.5 : 1,
+              cursor: receiveLoading || !receiveAmount ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
+          </button>
+
+          {receiveError && (
+            <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveError}</p>
+          )}
+          {receiveSuccess && (
+            <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>
           )}
         </div>
 

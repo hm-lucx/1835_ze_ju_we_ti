@@ -498,6 +498,74 @@ async function transferMoney({ gameId, username, toUsername, amount }) {
   };
 }
 
+async function receiveFromBank({ gameId, username, amount }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: {
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'RUNNING') {
+    throw new GameError(400, 'Auszahlungen sind nur während des laufenden Spiels möglich.');
+  }
+
+  const player = game.playerAccounts.find(pa => pa.user.username === username);
+  if (!player) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new GameError(400, 'Betrag muss eine positive ganze Zahl sein.');
+  }
+
+  if (!game.bankAccount) {
+    throw new GameError(500, 'Bankkonto nicht gefunden.');
+  }
+
+  await db.$transaction([
+    db.bankAccount.update({
+      where: { id: game.bankAccount.id },
+      data: { balance: { decrement: amount } },
+    }),
+    db.playerAccount.update({
+      where: { id: player.id },
+      data: { balance: { increment: amount } },
+    }),
+    db.transaction.create({
+      data: {
+        gameId,
+        fromId: null,
+        toId: player.userId,
+        amount,
+        type: 'RECEIVE_FROM_BANK',
+      },
+    }),
+  ]);
+
+  const updatedGame = await db.game.findUnique({
+    where: { id: gameId },
+    include: {
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  return {
+    accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+  };
+}
+
 async function resetGames() {
   const db = getDb();
   try {
@@ -517,6 +585,7 @@ module.exports = {
   leaveGame,
   startGame,
   transferMoney,
+  receiveFromBank,
   resetGames,
   MAX_PLAYERS,
   MIN_PLAYERS,
