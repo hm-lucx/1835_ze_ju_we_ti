@@ -12,10 +12,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  if (isAuthenticated) {
-    return <Navigate to="/lobby" replace />;
-  }
-
   const handleLogin = useCallback(async () => {
     setError('');
     if (!username.trim() || !password) {
@@ -24,12 +20,15 @@ export default function LoginPage() {
     }
     try {
       await login(username, password);
-      // isAuthenticated wird true → <Navigate> im Render übernimmt die Weiterleitung
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
       setError(apiErr.message || 'Anmeldung fehlgeschlagen.');
     }
   }, [username, password, login]);
+
+  if (isAuthenticated) {
+    return <Navigate to="/lobby" replace />;
+  }
 
   return (
     <AuthCard title="1835" subtitle="Willkommen zurück">

@@ -27,6 +27,25 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const handleRegister = useCallback(async () => {
+    setError('');
+    if (!validate()) return;
+    try {
+      await register(username, password, passwordConfirm, birthDate, email);
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      if (apiErr.message) {
+        if (apiErr.message.includes('bereits vergeben')) {
+          setFieldErrors({ username: apiErr.message });
+        } else {
+          setError(apiErr.message);
+        }
+      } else {
+        setError('Registrierung fehlgeschlagen.');
+      }
+    }
+  }, [username, email, birthDate, password, passwordConfirm, register]);
+
   if (isAuthenticated) {
     return <Navigate to="/lobby" replace />;
   }
@@ -43,26 +62,6 @@ export default function RegisterPage() {
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
-
-  const handleRegister = useCallback(async () => {
-    setError('');
-    if (!validate()) return;
-    try {
-      await register(username, password, passwordConfirm, birthDate, email);
-      // isAuthenticated wird true → <Navigate> im Render übernimmt die Weiterleitung
-    } catch (err: unknown) {
-      const apiErr = err as { message?: string };
-      if (apiErr.message) {
-        if (apiErr.message.includes('bereits vergeben')) {
-          setFieldErrors({ username: apiErr.message });
-        } else {
-          setError(apiErr.message);
-        }
-      } else {
-        setError('Registrierung fehlgeschlagen.');
-      }
-    }
-  }, [username, email, birthDate, password, passwordConfirm, register]);
 
   return (
     <AuthCard title="Registrierung" subtitle="Tritt dem Spiel bei">
