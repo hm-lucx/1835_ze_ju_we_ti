@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const QRCode = require('qrcode');
 const { getDb } = require('./lib/db');
 const { isAtLeast16 } = require('./authService');
+const { Prisma } = require('./generated/prisma');
 
 const MAX_PLAYERS = 7;
 const MIN_PLAYERS = 3;
@@ -103,9 +104,7 @@ async function getGame(gameId, username) {
     throw new GameError(403, 'Nur Teilnehmer können diese Runde einsehen.');
   }
 
-  const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?token=${game.inviteToken}&game=${game.id}`;
-  const inviteLinkShort = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${game.inviteCode}`;
-  const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLinkShort, { type: 'svg' });
+  const isHost = game.host.username === username;
 
   let winners;
   if (game.status === 'FINISHED') {
@@ -115,15 +114,11 @@ async function getGame(gameId, username) {
       .map(a => a.user.username);
   }
 
-  return {
+  const result = {
     id: game.id,
     host: game.host.username,
     status: game.status,
     players: game.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString(), resumeConfirmed: p.resumeConfirmed })),
-    inviteCode: game.inviteCode,
-    inviteLink,
-    inviteLinkShort,
-    qrCodeSvg,
     createdAt: game.createdAt.toISOString(),
     startedAt: game.startedAt ? game.startedAt.toISOString() : null,
     finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
@@ -131,6 +126,50 @@ async function getGame(gameId, username) {
     bank: game.bankAccount ? { balance: game.bankAccount.balance } : null,
     winners,
   };
+
+  if (isHost && game.status === 'LOBBY') {
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteLinkShort = `${baseUrl}/join/${game.inviteCode}`;
+    result.inviteCode = game.inviteCode;
+    result.inviteLink = `${baseUrl}/join?token=${game.inviteToken}&game=${game.id}`;
+    result.inviteLinkShort = inviteLinkShort;
+    result.qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLinkShort, { type: 'svg' });
+  }
+
+  return result;
+}
+
+async function joinPlayerToLobby(db, { gameId, userId, fullMessage }) {
+  return db.$transaction(async (tx) => {
+    const game = await tx.game.findUnique({
+      where: { id: gameId },
+      include: { host: true, players: { include: { user: true } } },
+    });
+
+    if (!game) {
+      throw new GameError(404, 'Spielrunde nicht gefunden.');
+    }
+
+    if (game.status !== 'LOBBY') {
+      throw new GameError(409, fullMessage ? 'Runde bereits gestartet.' : 'Diese Runde hat bereits begonnen.');
+    }
+
+    if (game.players.some(p => p.userId === userId)) {
+      throw new GameError(409, 'Du bist bereits in dieser Runde.');
+    }
+
+    const playerCount = await tx.gamePlayer.count({ where: { gameId } });
+    if (playerCount >= MAX_PLAYERS) {
+      throw new GameError(409, fullMessage ? 'Runde ist voll.' : 'Diese Runde ist bereits voll.');
+    }
+
+    await tx.gamePlayer.create({ data: { gameId, userId } });
+
+    return tx.game.findUnique({
+      where: { id: gameId },
+      include: { host: true, players: { include: { user: true } } },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 async function joinGame({ gameId, inviteToken, username }) {
@@ -157,14 +196,6 @@ async function joinGame({ gameId, inviteToken, username }) {
     throw new GameError(403, 'Ungültiger Einladungslink.');
   }
 
-  if (game.players.some(p => p.user.username === username)) {
-    throw new GameError(409, 'Du bist bereits in dieser Runde.');
-  }
-
-  if (game.players.length >= MAX_PLAYERS) {
-    throw new GameError(409, 'Diese Runde ist bereits voll.');
-  }
-
   const user = await db.user.findUnique({ where: { username } });
   if (!user) {
     throw new GameError(404, 'Benutzer nicht gefunden.');
@@ -174,14 +205,7 @@ async function joinGame({ gameId, inviteToken, username }) {
     throw new GameError(403, 'Mindestalter nicht erfüllt.');
   }
 
-  await db.gamePlayer.create({
-    data: { gameId, userId: user.id }
-  });
-
-  const updatedGame = await db.game.findUnique({
-    where: { id: gameId },
-    include: { host: true, players: { include: { user: true } } }
-  });
+  const updatedGame = await joinPlayerToLobby(db, { gameId, userId: user.id });
 
   return {
     id: updatedGame.id,
@@ -211,14 +235,6 @@ async function joinRoundByCode({ inviteCode, username }) {
     throw new GameError(409, 'Runde bereits gestartet.');
   }
 
-  if (game.players.some(p => p.user.username === username)) {
-    throw new GameError(409, 'Du bist bereits in dieser Runde.');
-  }
-
-  if (game.players.length >= MAX_PLAYERS) {
-    throw new GameError(409, 'Runde ist voll.');
-  }
-
   const user = await db.user.findUnique({ where: { username } });
   if (!user) {
     throw new GameError(404, 'Benutzer nicht gefunden.');
@@ -228,14 +244,7 @@ async function joinRoundByCode({ inviteCode, username }) {
     throw new GameError(403, 'Mindestalter nicht erfüllt.');
   }
 
-  await db.gamePlayer.create({
-    data: { gameId: game.id, userId: user.id }
-  });
-
-  const updatedGame = await db.game.findUnique({
-    where: { id: game.id },
-    include: { host: true, players: { include: { user: true } } }
-  });
+  const updatedGame = await joinPlayerToLobby(db, { gameId: game.id, userId: user.id, fullMessage: true });
 
   return {
     roundId: updatedGame.id,

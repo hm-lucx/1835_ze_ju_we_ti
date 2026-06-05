@@ -421,32 +421,36 @@ export default function LobbyPage() {
               </button>
             )}
 
-            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-              <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
-                Einladungscode
-              </p>
-              <p className="invite-code">{game.inviteCode}</p>
-            </div>
+            {isHost && game.inviteCode && (
+              <>
+                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+                    Einladungscode
+                  </p>
+                  <p className="invite-code">{game.inviteCode}</p>
+                </div>
 
-            <div className="invite-row">
-              <input
-                readOnly
-                value={game.inviteLinkShort}
-                className="form-input form-input--mono"
-              />
-              <button type="button" className="btn btn--inline" onClick={handleCopyLink}>
-                {copied ? 'Kopiert' : 'Kopieren'}
-              </button>
-            </div>
+                <div className="invite-row">
+                  <input
+                    readOnly
+                    value={game.inviteLinkShort}
+                    className="form-input form-input--mono"
+                  />
+                  <button type="button" className="btn btn--inline" onClick={handleCopyLink}>
+                    {copied ? 'Kopiert' : 'Kopieren'}
+                  </button>
+                </div>
 
-            {game.qrCodeSvg && (
-              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                <img
-                  src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
-                  alt="QR-Code zum Beitreten"
-                  className="qr-code"
-                />
-              </div>
+                {game.qrCodeSvg && (
+                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    <img
+                      src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
+                      alt="QR-Code zum Beitreten"
+                      className="qr-code"
+                    />
+                  </div>
+                )}
+              </>
             )}
 
             {isHost && (
