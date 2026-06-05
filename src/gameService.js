@@ -602,7 +602,7 @@ async function pauseGame({ gameId, username }) {
     where: { id: gameId },
     data: { status: 'PAUSED' },
     include: {
-      players: { include: { user: true, account: true } },
+      playerAccounts: { include: { user: true } },
       bankAccount: true,
     },
   });
