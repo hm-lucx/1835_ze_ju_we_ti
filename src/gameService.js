@@ -103,6 +103,14 @@ async function getGame(gameId, username) {
   const inviteLinkShort = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${game.inviteCode}`;
   const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLinkShort, { type: 'svg' });
 
+  let winners;
+  if (game.status === 'FINISHED') {
+    const maxBalance = Math.max(...game.playerAccounts.map(a => a.balance));
+    winners = game.playerAccounts
+      .filter(a => a.balance === maxBalance)
+      .map(a => a.user.username);
+  }
+
   return {
     id: game.id,
     host: game.host.username,
@@ -117,6 +125,7 @@ async function getGame(gameId, username) {
     finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
     accounts: game.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: game.bankAccount ? { balance: game.bankAccount.balance } : null,
+    winners,
   };
 }
 
