@@ -234,4 +234,58 @@ describe('LobbyPage', () => {
     renderPage();
     expect(screen.getByText(/host1/)).toBeInTheDocument();
   });
+
+  it('zeigt Runde beitreten Button im leeren Zustand', () => {
+    renderPage();
+    expect(screen.getByText('Runde beitreten')).toBeInTheDocument();
+  });
+
+  it('zeigt Eingabefeld nach Klick auf Runde beitreten', async () => {
+    renderPage();
+    await userEvent.click(screen.getByText('Runde beitreten'));
+    expect(screen.getByPlaceholderText('z.B. A3F7K2')).toBeInTheDocument();
+    expect(screen.getByText('Beitreten')).toBeInTheDocument();
+    expect(screen.getByText('Abbrechen')).toBeInTheDocument();
+  });
+
+  it('schließt Eingabefeld bei Klick auf Abbrechen', async () => {
+    renderPage();
+    await userEvent.click(screen.getByText('Runde beitreten'));
+    await userEvent.click(screen.getByText('Abbrechen'));
+    expect(screen.queryByPlaceholderText('z.B. A3F7K2')).not.toBeInTheDocument();
+  });
+
+  it('ruft API bei gültigem Code auf und navigiert', async () => {
+    mockApiPost.mockResolvedValueOnce({ roundId: 'round-1' });
+    renderPage();
+    await userEvent.click(screen.getByText('Runde beitreten'));
+    const input = screen.getByPlaceholderText('z.B. A3F7K2');
+    await userEvent.type(input, 'ABCD12');
+    await userEvent.click(screen.getByText('Beitreten'));
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith('/api/rounds/join', { inviteCode: 'ABCD12' }, 'test-token');
+    });
+    expect(mockNavigate).toHaveBeenCalledWith('/lobby?game=round-1');
+  });
+
+  it('zeigt Fehler bei ungültigem Code', async () => {
+    renderPage();
+    await userEvent.click(screen.getByText('Runde beitreten'));
+    const input = screen.getByPlaceholderText('z.B. A3F7K2');
+    await userEvent.type(input, 'ab');
+    await userEvent.click(screen.getByText('Beitreten'));
+    expect(screen.getByText('Bitte gib einen gültigen 6-stelligen Code ein.')).toBeInTheDocument();
+  });
+
+  it('zeigt Fehlermeldung wenn API join fehlschlägt', async () => {
+    mockApiPost.mockRejectedValueOnce({ message: 'Runde nicht gefunden.' });
+    renderPage();
+    await userEvent.click(screen.getByText('Runde beitreten'));
+    const input = screen.getByPlaceholderText('z.B. A3F7K2');
+    await userEvent.type(input, 'WRONG1');
+    await userEvent.click(screen.getByText('Beitreten'));
+    await waitFor(() => {
+      expect(screen.getByText('Runde nicht gefunden.')).toBeInTheDocument();
+    });
+  });
 });
