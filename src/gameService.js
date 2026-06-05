@@ -113,6 +113,8 @@ async function getGame(gameId, username) {
     inviteLinkShort,
     qrCodeSvg,
     createdAt: game.createdAt.toISOString(),
+    startedAt: game.startedAt ? game.startedAt.toISOString() : null,
+    finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
     accounts: game.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: game.bankAccount ? { balance: game.bankAccount.balance } : null,
   };
@@ -614,6 +616,52 @@ async function pauseGame({ gameId, username }) {
   };
 }
 
+async function finishGame({ gameId, username }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { players: { include: { user: true } }, playerAccounts: { include: { user: true } } },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'RUNNING' && game.status !== 'PAUSED') {
+    throw new GameError(409, 'Nur laufende oder pausierte Spiele können beendet werden.');
+  }
+
+  const player = game.players.find(p => p.user.username === username);
+  if (!player) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  const maxBalance = Math.max(...game.playerAccounts.map(a => a.balance));
+  const winners = game.playerAccounts
+    .filter(a => a.balance === maxBalance)
+    .map(a => a.user.username);
+
+  const now = new Date();
+
+  const updatedGame = await db.game.update({
+    where: { id: gameId },
+    data: { status: 'FINISHED', finishedAt: now },
+    include: {
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  return {
+    accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+    status: updatedGame.status,
+    finishedAt: updatedGame.finishedAt.toISOString(),
+    winners,
+  };
+}
+
 async function getTransactions(gameId, username) {
   const db = getDb();
 
@@ -682,6 +730,7 @@ module.exports = {
   transferMoney,
   receiveFromBank,
   pauseGame,
+  finishGame,
   getTransactions,
   resetGames,
   MAX_PLAYERS,

@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, getTransactions } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, finishGame, getTransactions } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -252,6 +252,21 @@ function createApp(options = {}) {
     try {
       const transactions = await getTransactions(req.params.id, req.user.username);
       res.status(200).json({ transactions });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/games/:id/finish', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await finishGame({
+        gameId: req.params.id,
+        username: req.user.username,
+      });
+      res.status(200).json({
+        message: 'Spiel beendet.',
+        ...result,
+      });
     } catch (error) {
       next(error);
     }

@@ -1014,6 +1014,34 @@ test('POST /api/games/:id/pause ohne Auth wird abgewiesen', async () => {
   assert.equal(res.status, 401);
 });
 
+test('POST /api/games/:id/finish beendet ein laufendes Spiel', async () => {
+  const t1 = await registerAndGetToken(app, 'finishTest1');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'finishTest2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'finishTest3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/finish`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'FINISHED');
+  assert.equal(res.body.message, 'Spiel beendet.');
+  assert.ok(res.body.finishedAt);
+  assert.ok(res.body.accounts);
+  assert.ok(res.body.bank);
+  assert.ok(Array.isArray(res.body.winners));
+  assert.equal(res.body.winners.length, 3);
+});
+
+test('POST /api/games/:id/finish ohne Auth wird abgewiesen', async () => {
+  const res = await request(app)
+    .post('/api/games/fake-id/finish');
+
+  assert.equal(res.status, 401);
+});
+
 test('POST /api/games/:id/pause im LOBBY-Status wird abgewiesen', async () => {
   const t1 = await registerAndGetToken(app, 'pauseLobbyTest');
   const { game } = await createAndGetInviteToken(app, t1);
@@ -1024,4 +1052,38 @@ test('POST /api/games/:id/pause im LOBBY-Status wird abgewiesen', async () => {
 
   assert.equal(res.status, 409);
   assert.equal(res.body.message, 'Nur laufende Spiele können pausiert werden.');
+});
+
+test('POST /api/games/:id/finish im LOBBY-Status wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'finishLobbyTest');
+  const { game } = await createAndGetInviteToken(app, t1);
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/finish`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 409);
+  assert.equal(res.body.message, 'Nur laufende oder pausierte Spiele können beendet werden.');
+});
+
+test('POST /api/games/:id/finish mit Gleichstand ermittelt beide Sieger', async () => {
+  const t1 = await registerAndGetToken(app, 'finishTie1');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'finishTie2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'finishTie3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: '', amount: 100 });
+
+  const res = await request(app)
+    .post(`/api/games/${game.id}/finish`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.winners.length, 2);
+  assert.ok(res.body.winners.includes('finishTie2'));
+  assert.ok(res.body.winners.includes('finishTie3'));
 });

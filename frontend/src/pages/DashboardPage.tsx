@@ -15,8 +15,10 @@ interface Game {
   status: string;
   players: { username: string; joinedAt: string }[];
   startedAt?: string;
+  finishedAt?: string;
   accounts: Account[];
   bank: { balance: number } | null;
+  winners?: string[];
 }
 
 interface Transaction {
@@ -133,6 +135,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [pauseLoading, setPauseLoading] = useState(false);
+  const [finishLoading, setFinishLoading] = useState(false);
 
   async function handleTransfer() {
     if (!token || !id || !myAccount) return;
@@ -197,6 +200,20 @@ export default function DashboardPage() {
       setError((err as { message?: string }).message || 'Pausieren fehlgeschlagen.');
     } finally {
       setPauseLoading(false);
+    }
+  }
+
+  async function handleFinish() {
+    if (!token || !id) return;
+    if (!window.confirm('Spiel wirklich beenden? Dies kann nicht rückgängig gemacht werden.')) return;
+    setFinishLoading(true);
+    try {
+      const data = await apiPost(`/api/games/${id}/finish`, {}, token) as { status: string; winners: string[]; finishedAt: string };
+      setGame(prev => prev ? { ...prev, status: data.status, winners: data.winners, finishedAt: data.finishedAt } : null);
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Beenden fehlgeschlagen.');
+    } finally {
+      setFinishLoading(false);
     }
   }
 
@@ -305,6 +322,12 @@ export default function DashboardPage() {
           </p>
         )}
 
+        {game.status === 'FINISHED' && (
+          <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-accent)', fontWeight: 700 }}>
+            🏆 Spiel beendet
+          </p>
+        )}
+
         {myAccount && (
           <div style={balanceCardStyle}>
             <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Dein Kontostand</p>
@@ -327,12 +350,29 @@ export default function DashboardPage() {
               ...buttonStyle,
               backgroundColor: '#b33a2e',
               color: '#fff',
-              marginBottom: '1rem',
+              marginBottom: '0.5rem',
               opacity: pauseLoading ? 0.5 : 1,
               cursor: pauseLoading ? 'not-allowed' : 'pointer',
             }}
           >
             {pauseLoading ? 'Wird pausiert…' : 'Spiel pausieren'}
+          </button>
+        )}
+
+        {(game.status === 'RUNNING' || game.status === 'PAUSED') && (
+          <button
+            onClick={handleFinish}
+            disabled={finishLoading}
+            style={{
+              ...buttonStyle,
+              backgroundColor: '#1a1a1a',
+              color: '#fff',
+              marginBottom: '1rem',
+              opacity: finishLoading ? 0.5 : 1,
+              cursor: finishLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {finishLoading ? 'Wird beendet…' : 'Spiel beenden'}
           </button>
         )}
 
@@ -347,11 +387,13 @@ export default function DashboardPage() {
           <tbody>
             {sortedAccounts.map((a, i) => {
               const isMe = a.username === user?.username;
+              const isWinner = game.winners?.includes(a.username);
+              const bgColor = isWinner ? 'rgba(201, 153, 58, 0.15)' : isMe ? 'rgba(201, 153, 58, 0.08)' : undefined;
               return (
-                <tr key={a.userId} style={{ backgroundColor: isMe ? 'rgba(201, 153, 58, 0.08)' : undefined }}>
+                <tr key={a.userId} style={{ backgroundColor: bgColor }}>
                   <td style={{ textAlign: 'center', padding: '0.25rem 0.3rem', color: 'var(--color-muted)' }}>{i + 1}.</td>
                   <td style={{ padding: '0.25rem 0.5rem', fontWeight: isMe ? 700 : 400 }}>
-                    {a.username}{isMe ? ' (Du)' : ''}
+                    {isWinner ? '👑 ' : ''}{a.username}{isMe ? ' (Du)' : ''}
                   </td>
                   <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} Mark</td>
                 </tr>
@@ -503,9 +545,13 @@ export default function DashboardPage() {
               )}
             </div>
           </>
-        ) : (
+        ) : game.status === 'PAUSED' ? (
           <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
             Transaktionen sind im pausierten Zustand nicht möglich.
+          </p>
+        ) : (
+          <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
+            Das Spiel ist beendet.
           </p>
         )}
 
