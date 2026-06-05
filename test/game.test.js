@@ -931,6 +931,41 @@ test('POST /api/games/:id/transfer speichert memo', async () => {
   assert.equal(tx.memo, 'Testzweck');
 });
 
+test('POST /api/games/:id/transfer mit zu langem memo wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'memoLong');
+  const t2 = await registerAndGetToken(app, 'memoLong2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'memoLong3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const longMemo = 'x'.repeat(501);
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'memoLong2', amount: 50, memo: longMemo });
+
+  assert.equal(transferRes.status, 400);
+  assert.equal(transferRes.body.message, 'Verwendungszweck ist zu lang (max. 500 Zeichen).');
+});
+
+test('POST /api/games/:id/receive-from-bank mit zu langem memo wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'memoLongBank');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'memoLongBank2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'memoLongBank3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const longMemo = 'x'.repeat(501);
+  const receiveRes = await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 50, memo: longMemo });
+
+  assert.equal(receiveRes.status, 400);
+  assert.equal(receiveRes.body.message, 'Verwendungszweck ist zu lang (max. 500 Zeichen).');
+});
+
 test('POST /api/games/:id/receive-from-bank speichert memo', async () => {
   const t1 = await registerAndGetToken(app, 'memoRecvBank');
   const { game, inviteToken } = await createAndGetInviteToken(app, t1);

@@ -34,6 +34,11 @@ const TYPE_LABELS: Record<string, string> = {
   STARTING_CAPITAL: 'Startkapital',
   PLAYER_TRANSFER: 'Überweisung',
   RECEIVE_FROM_BANK: 'Bankeinzahlung',
+  BUY_FROM_BANK: 'Aktienkauf (Bank)',
+  SELL_TO_BANK: 'Aktienverkauf (Bank)',
+  BUY_FROM_PLAYER: 'Aktienkauf (Spieler)',
+  SELL_TO_PLAYER: 'Aktienverkauf (Spieler)',
+  PAYOFF: 'Auszahlung',
 };
 
 const centerStyle = {
@@ -148,6 +153,7 @@ export default function DashboardPage() {
       setTransferError((err as { message?: string }).message || 'Überweisung fehlgeschlagen.');
     } finally {
       setTransferLoading(false);
+      loadTransactions();
     }
   }
 
@@ -171,6 +177,7 @@ export default function DashboardPage() {
       setReceiveError((err as { message?: string }).message || 'Auszahlung fehlgeschlagen.');
     } finally {
       setReceiveLoading(false);
+      loadTransactions();
     }
   }
 
@@ -194,8 +201,8 @@ export default function DashboardPage() {
     try {
       const data = await apiGet(`/api/games/${id}/transactions`, token) as { transactions: Transaction[] };
       setTransactions(data.transactions);
-    } catch {
-      // silently ignore
+    } catch (err) {
+      console.warn('Transaktionen laden fehlgeschlagen:', err);
     } finally {
       setTransactionsLoading(false);
     }

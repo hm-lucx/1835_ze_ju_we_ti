@@ -424,6 +424,10 @@ async function transferMoney({ gameId, username, toUsername, amount, memo }) {
     throw new GameError(400, 'Betrag muss eine positive ganze Zahl sein.');
   }
 
+  if (typeof memo === 'string' && memo.length > 500) {
+    throw new GameError(400, 'Verwendungszweck ist zu lang (max. 500 Zeichen).');
+  }
+
   if (amount > sender.balance) {
     throw new GameError(400, 'Nicht genügend Guthaben.');
   }
@@ -527,6 +531,10 @@ async function receiveFromBank({ gameId, username, amount, memo }) {
 
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new GameError(400, 'Betrag muss eine positive ganze Zahl sein.');
+  }
+
+  if (typeof memo === 'string' && memo.length > 500) {
+    throw new GameError(400, 'Verwendungszweck ist zu lang (max. 500 Zeichen).');
   }
 
   if (!game.bankAccount) {
