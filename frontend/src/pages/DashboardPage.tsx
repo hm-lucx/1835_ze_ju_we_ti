@@ -276,14 +276,14 @@ export default function DashboardPage() {
         {myAccount && (
           <div style={balanceCardStyle}>
             <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Dein Kontostand</p>
-            <p style={balanceAmountStyle}>{myAccount.balance} €</p>
+            <p style={balanceAmountStyle}>{myAccount.balance} Mark</p>
           </div>
         )}
 
         {game.bank && (
           <div style={{ ...balanceCardStyle, borderColor: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-border)', marginBottom: '1.5rem' }}>
             <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)' }}>Bank</p>
-            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} €</p>
+            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} Mark</p>
           </div>
         )}
 
@@ -300,7 +300,7 @@ export default function DashboardPage() {
                 <td style={{ padding: '0.25rem 0.5rem', fontWeight: a.username === user?.username ? 700 : 400 }}>
                   {a.username}{a.username === user?.username ? ' (Du)' : ''}
                 </td>
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} €</td>
+                <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} Mark</td>
               </tr>
             ))}
           </tbody>
