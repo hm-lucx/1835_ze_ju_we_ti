@@ -2,24 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiPost } from '../lib/api';
-
-const centerStyle = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '100vh',
-  padding: '1rem',
-} as const;
-
-const cardStyle = {
-  backgroundColor: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  boxShadow: '0 4px 20px rgba(201, 153, 58, 0.15)',
-  padding: '2.5rem 2rem',
-  width: '100%',
-  maxWidth: 420,
-  textAlign: 'center',
-} as const;
+import PageShell from '../components/PageShell';
 
 export default function JoinPage() {
   const { token } = useAuth();
@@ -75,29 +58,24 @@ export default function JoinPage() {
   }, [token, searchParams, pathCode, navigate]);
 
   return (
-    <div style={centerStyle}>
-      <div style={cardStyle}>
-        {status === 'joining' && <p>Wird der Runde beigetreten…</p>}
-        {status === 'success' && (
-          <>
-            <p style={{ color: 'var(--color-accent)', fontWeight: 600 }}>{message}</p>
-            <p style={{ color: 'var(--color-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-              Weiterleitung zur Lobby…
-            </p>
-          </>
-        )}
-        {status === 'error' && (
-          <>
-            <p style={{ color: 'var(--color-error)' }}>{message}</p>
-            <button
-              onClick={() => navigate('/lobby')}
-              style={{ marginTop: '1rem', padding: '0.75rem 2rem', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, color: '#1a1410', backgroundColor: 'var(--color-accent)', border: 'none', cursor: 'pointer' }}
-            >
-              Zum Dashboard
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+    <PageShell withHeader center>
+      {status === 'joining' && <p className="page-muted">Wird der Runde beigetreten…</p>}
+      {status === 'success' && (
+        <>
+          <p style={{ color: 'var(--color-accent)', fontWeight: 600, textAlign: 'center' }}>{message}</p>
+          <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+            Weiterleitung zur Lobby…
+          </p>
+        </>
+      )}
+      {status === 'error' && (
+        <>
+          <p className="page-error">{message}</p>
+          <button type="button" className="btn" style={{ marginTop: '1rem' }} onClick={() => navigate('/lobby')}>
+            Zur Lobby
+          </button>
+        </>
+      )}
+    </PageShell>
   );
 }

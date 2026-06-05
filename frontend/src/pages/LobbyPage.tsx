@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiPost, apiGet } from '../lib/api';
+import PageShell from '../components/PageShell';
 
 interface Player {
   username: string;
@@ -40,52 +41,6 @@ interface GameSummary {
   resumeConfirmedCount: number;
 }
 
-const centerStyle = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '100vh',
-  padding: '1rem',
-} as const;
-
-const cardStyle = {
-  backgroundColor: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  boxShadow: '0 4px 20px rgba(201, 153, 58, 0.15)',
-  padding: '2.5rem 2rem',
-  width: '100%',
-  maxWidth: 560,
-} as const;
-
-const titleStyle = {
-  fontFamily: 'var(--font-display)',
-  fontSize: '1.75rem',
-  fontWeight: 700,
-  color: 'var(--color-accent)',
-  textAlign: 'center',
-  marginBottom: '1.5rem',
-} as const;
-
-const buttonStyle = {
-  display: 'block',
-  width: '100%',
-  padding: '0.75rem',
-  fontFamily: 'var(--font-body)',
-  fontSize: '1.05rem',
-  fontWeight: 600,
-  color: '#1a1410',
-  backgroundColor: 'var(--color-accent)',
-  border: 'none',
-  cursor: 'pointer',
-  marginTop: '0.5rem',
-} as const;
-
-const mutedStyle = {
-  color: 'var(--color-muted)',
-  fontSize: '0.9rem',
-  textAlign: 'center',
-} as const;
-
 const MIN_PLAYERS = 3;
 
 function statusLabel(status: string): string {
@@ -97,29 +52,17 @@ function statusLabel(status: string): string {
   }
 }
 
-function statusBadgeStyle(status: string) {
-  const base = {
-    display: 'inline-block',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    padding: '0.15rem 0.5rem',
-    marginLeft: '0.5rem',
-    borderRadius: 2,
-  } as const;
+function statusBadgeClass(status: string): string {
   switch (status) {
-    case 'LOBBY':
-      return { ...base, backgroundColor: 'rgba(201, 153, 58, 0.2)', color: 'var(--color-accent)' };
-    case 'RUNNING':
-      return { ...base, backgroundColor: 'rgba(46, 125, 50, 0.2)', color: '#2e7d32' };
-    case 'PAUSED':
-      return { ...base, backgroundColor: 'rgba(179, 58, 46, 0.15)', color: 'var(--color-error)' };
-    default:
-      return { ...base, backgroundColor: 'var(--color-border)', color: 'var(--color-muted)' };
+    case 'LOBBY': return 'status-badge status-badge--lobby';
+    case 'RUNNING': return 'status-badge status-badge--running';
+    case 'PAUSED': return 'status-badge status-badge--paused';
+    default: return 'status-badge';
   }
 }
 
 export default function LobbyPage() {
-  const { token, user, logout } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [game, setGame] = useState<Game | null>(null);
@@ -303,266 +246,213 @@ export default function LobbyPage() {
   const canStart = isHost && game && game.players.length >= MIN_PLAYERS;
 
   return (
-    <div style={centerStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>Lobby</h1>
+    <PageShell wide withHeader>
+      <h1 className="page-title">Lobby</h1>
 
-        <p style={mutedStyle}>
-          Angemeldet als <strong>{user?.username}</strong>
-          {' – '}
-          <button
-            onClick={() => { logout(); navigate('/login'); }}
-            style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}
-          >
-            Abmelden
-          </button>
-        </p>
-
-        {!game && !joinMode && myGames.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h2 style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              color: 'var(--color-text)',
-              margin: '0 0 0.75rem',
-            }}>
-              Deine Spielrunden
-            </h2>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {myGames.map(g => (
-                <li
-                  key={g.id}
-                  style={{
-                    border: '1px solid var(--color-border)',
-                    padding: '0.75rem',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
-                        {g.host === user?.username ? 'Deine Runde' : `Runde von ${g.host}`}
-                        <span style={statusBadgeStyle(g.status)}>{statusLabel(g.status)}</span>
-                      </p>
-                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
-                        {g.playerCount} Spieler
-                        {g.status === 'PAUSED' && (
-                          <> · {g.resumeConfirmedCount}/{g.playerCount} bereit</>
-                        )}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexShrink: 0 }}>
+      {!game && !joinMode && myGames.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            color: 'var(--color-text)',
+            margin: '0 0 0.75rem',
+          }}>
+            Deine Spielrunden
+          </h2>
+          <ul className="game-list">
+            {myGames.map(g => (
+              <li key={g.id} className="game-list__item">
+                <div className="game-list__row">
+                  <div className="game-list__info">
+                    <p className="game-list__title">
+                      {g.host === user?.username ? 'Deine Runde' : `Runde von ${g.host}`}
+                      <span className={statusBadgeClass(g.status)}>{statusLabel(g.status)}</span>
+                    </p>
+                    <p className="game-list__meta">
+                      {g.playerCount} Spieler
                       {g.status === 'PAUSED' && (
-                        <button
-                          onClick={() => handleConfirmResume(g.id)}
-                          disabled={resumeLoading === g.id}
-                          style={{
-                            ...buttonStyle,
-                            marginTop: 0,
-                            width: 'auto',
-                            padding: '0.4rem 0.75rem',
-                            fontSize: '0.8rem',
-                            opacity: resumeLoading === g.id ? 0.5 : 1,
-                          }}
-                        >
-                          {resumeLoading === g.id ? '…' : 'Weiterspielen'}
-                        </button>
+                        <> · {g.resumeConfirmedCount}/{g.playerCount} bereit</>
                       )}
-                      <button
-                        onClick={() => handleOpenGame(g)}
-                        style={{
-                          ...buttonStyle,
-                          marginTop: 0,
-                          width: 'auto',
-                          padding: '0.4rem 0.75rem',
-                          fontSize: '0.8rem',
-                          backgroundColor: 'transparent',
-                          border: '1px solid var(--color-accent)',
-                          color: 'var(--color-accent)',
-                        }}
-                      >
-                        Öffnen
-                      </button>
-                    </div>
+                    </p>
                   </div>
-                </li>
+                  <div className="btn-group">
+                    {g.status === 'PAUSED' && (
+                      <button
+                        type="button"
+                        className="btn btn--inline"
+                        onClick={() => handleConfirmResume(g.id)}
+                        disabled={resumeLoading === g.id}
+                      >
+                        {resumeLoading === g.id ? '…' : 'Weiterspielen'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn--inline btn--secondary"
+                      onClick={() => handleOpenGame(g)}
+                    >
+                      Öffnen
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!game && !joinMode && (
+        <>
+          <button
+            type="button"
+            className="btn"
+            onClick={handleCreateGame}
+            disabled={loading}
+          >
+            {loading ? 'Wird erstellt…' : 'Neue Runde erstellen'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            style={{ marginTop: '0.75rem' }}
+            onClick={() => { setJoinMode(true); setError(''); }}
+          >
+            Runde beitreten
+          </button>
+        </>
+      )}
+
+      {!game && joinMode && (
+        <div style={{ marginTop: '1rem' }}>
+          <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text)', textAlign: 'center' }}>
+            Einladungscode eingeben:
+          </p>
+          <div className="form-row form-row--nowrap">
+            <input
+              type="text"
+              placeholder="z.B. A3F7K2"
+              value={joinCode}
+              onChange={e => setJoinCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleJoinRound()}
+              className="form-input"
+              style={{ textTransform: 'uppercase' }}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn btn--inline"
+              onClick={handleJoinRound}
+              disabled={loading}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {loading ? '…' : 'Beitreten'}
+            </button>
+          </div>
+          <button
+            type="button"
+            className="btn--link"
+            onClick={() => { setJoinMode(false); setJoinCode(''); setError(''); }}
+            style={{ display: 'block', margin: '0.5rem auto 0', fontSize: '0.85rem' }}
+          >
+            Abbrechen
+          </button>
+        </div>
+      )}
+
+      {game && (
+        <>
+          <div className="lobby-panel">
+            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: 'var(--color-accent)' }}>
+              Runde erstellt
+            </p>
+            <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
+              Status: <strong>{game.status}</strong>
+            </p>
+            <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
+              Spieler: {game.players.length} / 7
+            </p>
+            <ul style={{ margin: '0.5rem 0', fontSize: '0.85rem', color: 'var(--color-muted)' }}>
+              {game.players.map(p => (
+                <li key={p.username}>{p.username}{p.username === user?.username ? ' (Du)' : ''}</li>
               ))}
             </ul>
-          </div>
-        )}
 
-        {!game && !joinMode && (
-          <>
-            <button
-              onClick={handleCreateGame}
-              disabled={loading}
-              style={{ ...buttonStyle, opacity: loading ? 0.5 : 1 }}
-            >
-              {loading ? 'Wird erstellt…' : 'Neue Runde erstellen'}
-            </button>
-            <button
-              onClick={() => { setJoinMode(true); setError(''); }}
-              style={{
-                ...buttonStyle,
-                marginTop: '0.75rem',
-                backgroundColor: 'transparent',
-                border: '1px solid var(--color-accent)',
-                color: 'var(--color-accent)',
-              }}
-            >
-              Runde beitreten
-            </button>
-          </>
-        )}
-
-        {!game && joinMode && (
-          <div style={{ marginTop: '1rem' }}>
-            <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text)', textAlign: 'center' }}>
-              Einladungscode eingeben:
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                placeholder="z.B. A3F7K2"
-                value={joinCode}
-                onChange={e => setJoinCode(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleJoinRound()}
-                style={{
-                  flex: 1,
-                  padding: '0.6rem',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '1rem',
-                  backgroundColor: 'var(--color-bg)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text)',
-                  textTransform: 'uppercase',
-                }}
-                autoFocus
-              />
+            {!isHost && (
               <button
-                onClick={handleJoinRound}
+                type="button"
+                className="btn btn--ghost"
+                onClick={handleLeaveGame}
                 disabled={loading}
-                style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.6rem 1.2rem', whiteSpace: 'nowrap' }}
+                style={{ marginBottom: '1rem' }}
               >
-                {loading ? '…' : 'Beitreten'}
+                {loading ? 'Wird verlassen…' : 'Runde verlassen'}
+              </button>
+            )}
+
+            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+              <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+                Einladungscode
+              </p>
+              <p className="invite-code">{game.inviteCode}</p>
+            </div>
+
+            <div className="invite-row">
+              <input
+                readOnly
+                value={game.inviteLinkShort}
+                className="form-input form-input--mono"
+              />
+              <button type="button" className="btn btn--inline" onClick={handleCopyLink}>
+                {copied ? 'Kopiert' : 'Kopieren'}
               </button>
             </div>
-            <button
-              onClick={() => { setJoinMode(false); setJoinCode(''); setError(''); }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-muted)',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: 0,
-                font: 'inherit',
-                display: 'block',
-                margin: '0.5rem auto 0',
-                fontSize: '0.85rem',
-              }}
-            >
-              Abbrechen
-            </button>
-          </div>
-        )}
 
-        {game && (
-          <>
-            <div style={{ marginTop: '1.5rem', padding: '1rem', border: '1px solid var(--color-border)' }}>
-              <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: 'var(--color-accent)' }}>
-                Runde erstellt
-              </p>
-              <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
-                Status: <strong>{game.status}</strong>
-              </p>
-              <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
-                Spieler: {game.players.length} / 7
-              </p>
-              <ul style={{ margin: '0.5rem 0', fontSize: '0.85rem', color: 'var(--color-muted)' }}>
-                {game.players.map(p => (
-                  <li key={p.username}>{p.username}{p.username === user?.username ? ' (Du)' : ''}</li>
-                ))}
-              </ul>
-
-              {!isHost && (
-                <button
-                  onClick={handleLeaveGame}
-                  disabled={loading}
-                  style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)', marginBottom: '1rem' }}
-                >
-                  {loading ? 'Wird verlassen…' : 'Runde verlassen'}
-                </button>
-              )}
-
+            {game.qrCodeSvg && (
               <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
-                  Einladungscode
-                </p>
-                <p style={{ margin: '0 0 0.75rem', fontFamily: 'monospace', fontSize: '1.3rem', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.15em' }}>
-                  {game.inviteCode}
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  readOnly
-                  value={game.inviteLinkShort}
-                  style={{ flex: 1, padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                <img
+                  src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
+                  alt="QR-Code zum Beitreten"
+                  className="qr-code"
                 />
-                <button onClick={handleCopyLink} style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                  {copied ? 'Kopiert' : 'Kopieren'}
-                </button>
               </div>
+            )}
 
-              {game.qrCodeSvg && (
-                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                  <img
-                    src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
-                    alt="QR-Code zum Beitreten"
-                    style={{ width: 160, height: 160 }}
-                  />
-                </div>
-              )}
+            {isHost && (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleStartGame}
+                  disabled={!canStart || loading}
+                  style={{ opacity: loading ? 0.5 : canStart ? 1 : 0.4, cursor: canStart && !loading ? 'pointer' : 'not-allowed' }}
+                >
+                  {loading ? 'Wird gestartet…' : 'Spiel starten'}
+                </button>
+                {!canStart && !loading && (
+                  <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
+                  </p>
+                )}
+              </>
+            )}
+          </div>
 
-              {isHost && (
-                <>
-                  <button
-                    onClick={handleStartGame}
-                    disabled={!canStart || loading}
-                    style={{
-                      ...buttonStyle,
-                      opacity: loading ? 0.5 : canStart ? 1 : 0.4,
-                      cursor: canStart && !loading ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    {loading ? 'Wird gestartet…' : 'Spiel starten'}
-                  </button>
-                  {!canStart && !loading && (
-                    <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                      Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => { setGame(null); setError(''); }}
+          >
+            Zurück
+          </button>
+        </>
+      )}
 
-            <button
-              onClick={() => { setGame(null); setError(''); }}
-              style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-            >
-              Zurück
-            </button>
-          </>
-        )}
-
-        {error && (
-          <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.9rem', textAlign: 'center' }}>
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+      {error && (
+        <p className="page-error" style={{ marginTop: '0.5rem' }}>
+          {error}
+        </p>
+      )}
+    </PageShell>
   );
 }

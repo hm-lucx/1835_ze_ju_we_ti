@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
 import './styles/theme.css';
+import './styles/layout.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
