@@ -114,6 +114,10 @@ export default function DashboardPage() {
 
   const myAccount = game?.accounts?.find(a => a.username === user?.username);
   const otherPlayers = game?.accounts?.filter(a => a.username !== user?.username) || [];
+  const sortedAccounts = game?.accounts ? [...game.accounts].sort((a, b) => {
+    if (b.balance !== a.balance) return b.balance - a.balance;
+    return a.username.localeCompare(b.username);
+  }) : [];
 
   const [transferAmount, setTransferAmount] = useState('');
   const [transferRecipient, setTransferRecipient] = useState('');
@@ -297,19 +301,24 @@ export default function DashboardPage() {
         <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
           <thead>
             <tr>
+              <th style={{ textAlign: 'center', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)', width: '2rem' }}>Rang</th>
               <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Spieler</th>
               <th style={{ textAlign: 'right', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Kontostand</th>
             </tr>
           </thead>
           <tbody>
-            {game.accounts.map(a => (
-              <tr key={a.userId}>
-                <td style={{ padding: '0.25rem 0.5rem', fontWeight: a.username === user?.username ? 700 : 400 }}>
-                  {a.username}{a.username === user?.username ? ' (Du)' : ''}
-                </td>
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} Mark</td>
-              </tr>
-            ))}
+            {sortedAccounts.map((a, i) => {
+              const isMe = a.username === user?.username;
+              return (
+                <tr key={a.userId} style={{ backgroundColor: isMe ? 'rgba(201, 153, 58, 0.08)' : undefined }}>
+                  <td style={{ textAlign: 'center', padding: '0.25rem 0.3rem', color: 'var(--color-muted)' }}>{i + 1}.</td>
+                  <td style={{ padding: '0.25rem 0.5rem', fontWeight: isMe ? 700 : 400 }}>
+                    {a.username}{isMe ? ' (Du)' : ''}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} Mark</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -477,8 +486,8 @@ export default function DashboardPage() {
                 <tbody>
                   {transactions.map(t => {
                     const amountStr = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
-                      ? `+${t.amount} €`
-                      : `-${t.amount} €`;
+                      ? `+${t.amount} Mark`
+                      : `-${t.amount} Mark`;
                     const amountColor = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
                       ? 'var(--color-accent)'
                       : 'var(--color-error)';
@@ -488,7 +497,7 @@ export default function DashboardPage() {
                         <td style={{ padding: '0.25rem 0.3rem' }}>{t.fromUsername || 'Bank'}</td>
                         <td style={{ padding: '0.25rem 0.3rem' }}>{t.toUsername || 'Bank'}</td>
                         <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem', color: amountColor }}>{amountStr}</td>
-                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem' }}>{t.runningBalance !== null ? `${t.runningBalance} €` : '—'}</td>
+                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem' }}>{t.runningBalance !== null ? `${t.runningBalance} Mark` : '—'}</td>
                         <td style={{ padding: '0.25rem 0.3rem', color: 'var(--color-muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.memo || '—'}</td>
                       </tr>
                     );
