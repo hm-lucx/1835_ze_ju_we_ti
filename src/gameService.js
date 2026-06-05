@@ -395,6 +395,109 @@ async function leaveGame({ gameId, username }) {
   };
 }
 
+async function transferMoney({ gameId, username, toUsername, amount }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: {
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'RUNNING') {
+    throw new GameError(400, 'Überweisungen sind nur während des laufenden Spiels möglich.');
+  }
+
+  const sender = game.playerAccounts.find(pa => pa.user.username === username);
+  if (!sender) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new GameError(400, 'Betrag muss eine positive ganze Zahl sein.');
+  }
+
+  if (amount > sender.balance) {
+    throw new GameError(400, 'Nicht genügend Guthaben.');
+  }
+
+  if (!toUsername || toUsername.trim() === '') {
+    if (!game.bankAccount) {
+      throw new GameError(500, 'Bankkonto nicht gefunden.');
+    }
+
+    await db.$transaction([
+      db.playerAccount.update({
+        where: { id: sender.id },
+        data: { balance: { decrement: amount } },
+      }),
+      db.bankAccount.update({
+        where: { id: game.bankAccount.id },
+        data: { balance: { increment: amount } },
+      }),
+      db.transaction.create({
+        data: {
+          gameId,
+          fromId: sender.userId,
+          toId: null,
+          amount,
+          type: 'PLAYER_TRANSFER',
+        },
+      }),
+    ]);
+  } else {
+    const receiver = game.playerAccounts.find(pa => pa.user.username === toUsername);
+    if (!receiver) {
+      throw new GameError(404, 'Empfänger nicht gefunden.');
+    }
+
+    if (receiver.userId === sender.userId) {
+      throw new GameError(400, 'Du kannst kein Geld an dich selbst senden.');
+    }
+
+    await db.$transaction([
+      db.playerAccount.update({
+        where: { id: sender.id },
+        data: { balance: { decrement: amount } },
+      }),
+      db.playerAccount.update({
+        where: { id: receiver.id },
+        data: { balance: { increment: amount } },
+      }),
+      db.transaction.create({
+        data: {
+          gameId,
+          fromId: sender.userId,
+          toId: receiver.userId,
+          amount,
+          type: 'PLAYER_TRANSFER',
+        },
+      }),
+    ]);
+  }
+
+  const updatedGame = await db.game.findUnique({
+    where: { id: gameId },
+    include: {
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
+  });
+
+  return {
+    accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+  };
+}
+
 async function resetGames() {
   const db = getDb();
   try {
@@ -413,6 +516,7 @@ module.exports = {
   joinRoundByCode,
   leaveGame,
   startGame,
+  transferMoney,
   resetGames,
   MAX_PLAYERS,
   MIN_PLAYERS,
