@@ -8,6 +8,12 @@ interface Player {
   joinedAt: string;
 }
 
+interface Account {
+  userId: string;
+  username: string;
+  balance: number;
+}
+
 interface Game {
   id: string;
   host: string;
@@ -19,6 +25,8 @@ interface Game {
   qrCodeSvg?: string;
   startedAt?: string;
   createdAt: string;
+  accounts?: Account[];
+  bank?: { balance: number } | null;
 }
 
 const centerStyle = {
@@ -125,7 +133,7 @@ export default function LobbyPage() {
     try {
       const data = await apiPost(`/api/games/${game.id}/start`, undefined, token);
       if (data.game) {
-        setGame(prev => prev ? { ...prev, status: data.game.status, startedAt: data.game.startedAt } : null);
+        setGame(prev => prev ? { ...prev, status: data.game.status, startedAt: data.game.startedAt, accounts: data.game.accounts, bank: data.game.bank } : null);
       } else {
         setError(data.message || 'Fehler beim Starten.');
       }
@@ -372,9 +380,36 @@ export default function LobbyPage() {
               )}
 
               {game.status === 'RUNNING' && (
-                <p style={{ ...mutedStyle, marginTop: '1rem' }}>
-                  Spiel läuft seit {game.startedAt ? new Date(game.startedAt).toLocaleString() : '?'}
-                </p>
+                <>
+                  <p style={{ ...mutedStyle, marginTop: '1rem' }}>
+                    Spiel läuft seit {game.startedAt ? new Date(game.startedAt).toLocaleString() : '?'}
+                  </p>
+                  {game.accounts && game.accounts.length > 0 && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Spieler</th>
+                            <th style={{ textAlign: 'right', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Kontostand</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {game.accounts.map(a => (
+                            <tr key={a.userId}>
+                              <td style={{ padding: '0.25rem 0.5rem' }}>{a.username}{a.username === user?.username ? ' (Du)' : ''}</td>
+                              <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} €</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {game.bank && (
+                    <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                      Bank: {game.bank.balance} €
+                    </p>
+                  )}
+                </>
               )}
             </div>
 

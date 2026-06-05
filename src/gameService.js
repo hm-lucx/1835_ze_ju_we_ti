@@ -6,6 +6,19 @@ const { isAtLeast16 } = require('./authService');
 const MAX_PLAYERS = 7;
 const MIN_PLAYERS = 3;
 const STARTING_CAPITAL = 1000;
+const BANK_STARTING_BALANCE = 12000;
+
+const STARTING_CAPITAL_MAP = {
+  3: 600,
+  4: 475,
+  5: 390,
+  6: 340,
+  7: 310,
+};
+
+function getStartingCapital(playerCount) {
+  return STARTING_CAPITAL_MAP[playerCount] ?? null;
+}
 
 class GameError extends Error {
   constructor(statusCode, message) {
@@ -74,7 +87,7 @@ async function getGame(gameId, username) {
   const db = getDb();
   const game = await db.game.findUnique({
     where: { id: gameId },
-    include: { host: true, players: { include: { user: true } } }
+    include: { host: true, players: { include: { user: true } }, playerAccounts: { include: { user: true } }, bankAccount: true }
   });
 
   if (!game) {
@@ -99,7 +112,9 @@ async function getGame(gameId, username) {
     inviteLink,
     inviteLinkShort,
     qrCodeSvg,
-    createdAt: game.createdAt.toISOString()
+    createdAt: game.createdAt.toISOString(),
+    accounts: game.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: game.bankAccount ? { balance: game.bankAccount.balance } : null,
   };
 }
 
@@ -107,7 +122,12 @@ async function joinGame({ gameId, inviteToken, username }) {
   const db = getDb();
   const game = await db.game.findUnique({
     where: { id: gameId },
-    include: { players: { include: { user: true } } }
+    include: {
+      host: true,
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    }
   });
 
   if (!game) {
@@ -233,30 +253,56 @@ async function startGame({ gameId, username }) {
   }
 
   const now = new Date();
-  const updated = await db.game.update({
-    where: { id: gameId },
-    data: { status: 'RUNNING', startedAt: now },
-    include: { players: { include: { user: true } } }
-  });
+  const playerCount = game.players.length;
+  const perPlayerCapital = getStartingCapital(playerCount);
+  if (perPlayerCapital === null) {
+    throw new GameError(400, `Ungültige Spieleranzahl: ${playerCount}.`);
+  }
 
-  const playerIds = game.players.map(p => p.userId);
+  const totalStartingCapital = perPlayerCapital * playerCount;
+  const bankBalanceAfter = BANK_STARTING_BALANCE - totalStartingCapital;
 
-  await db.gameState.create({
-    data: {
-      gameId,
-      phase: 'STOCK_ROUND',
-      currentRound: 1,
-      stateJson: { playerOrder: playerIds, currentPlayerIndex: 0 }
-    }
-  });
-
-  await db.playerAccount.createMany({
-    data: playerIds.map(userId => ({ gameId, userId, balance: STARTING_CAPITAL }))
-  });
+  await db.$transaction([
+    db.game.update({
+      where: { id: gameId },
+      data: { status: 'RUNNING', startedAt: now },
+    }),
+    db.gameState.create({
+      data: {
+        gameId,
+        phase: 'STOCK_ROUND',
+        currentRound: 1,
+        stateJson: {
+          playerOrder: game.players.map(p => p.userId),
+          currentPlayerIndex: 0,
+          bankBalance: bankBalanceAfter,
+        },
+      },
+    }),
+    db.playerAccount.createMany({
+      data: game.players.map(p => ({ gameId, userId: p.userId, balance: perPlayerCapital })),
+    }),
+    db.bankAccount.create({
+      data: { gameId, balance: bankBalanceAfter },
+    }),
+    db.transaction.createMany({
+      data: game.players.map(p => ({
+        gameId,
+        fromId: null,
+        toId: p.userId,
+        amount: perPlayerCapital,
+        type: 'STARTING_CAPITAL',
+      })),
+    }),
+  ]);
 
   const finalGame = await db.game.findUnique({
     where: { id: gameId },
-    include: { players: { include: { user: true } }, playerAccounts: true }
+    include: {
+      players: { include: { user: true } },
+      playerAccounts: { include: { user: true } },
+      bankAccount: true,
+    },
   });
 
   return {
@@ -265,7 +311,8 @@ async function startGame({ gameId, username }) {
     status: finalGame.status,
     players: finalGame.players.map(p => ({ username: p.user.username, joinedAt: p.joinedAt.toISOString() })),
     startedAt: finalGame.startedAt.toISOString(),
-    accounts: finalGame.playerAccounts.map(a => ({ userId: a.userId, balance: a.balance }))
+    accounts: finalGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
+    bank: finalGame.bankAccount ? { balance: finalGame.bankAccount.balance } : null,
   };
 }
 
@@ -369,5 +416,7 @@ module.exports = {
   resetGames,
   MAX_PLAYERS,
   MIN_PLAYERS,
-  STARTING_CAPITAL
+  STARTING_CAPITAL,
+  BANK_STARTING_BALANCE,
+  getStartingCapital,
 };

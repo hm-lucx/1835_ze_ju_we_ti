@@ -197,6 +197,12 @@ describe('LobbyPage', () => {
         host: 'host1',
         status: 'RUNNING',
         startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 600 },
+          { userId: 'u3', username: 'player2', balance: 600 },
+        ],
+        bank: { balance: 10200 },
       },
     });
 
@@ -204,6 +210,53 @@ describe('LobbyPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Spiel läuft')).toBeInTheDocument();
+    });
+  });
+
+  it('zeigt Kontostände nach Spielstart an', async () => {
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'LOBBY',
+        players: [
+          { username: 'host1', joinedAt: new Date().toISOString() },
+          { username: 'player1', joinedAt: new Date().toISOString() },
+          { username: 'player2', joinedAt: new Date().toISOString() },
+        ],
+        inviteLink: 'http://localhost:5173/join?token=abc&game=game-1',
+        qrCodeSvg: '<svg></svg>',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    renderPage();
+    await userEvent.click(screen.getByText('Neue Runde erstellen'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Spiel starten')).toBeInTheDocument();
+    });
+
+    mockApiPost.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        startedAt: new Date().toISOString(),
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 600 },
+          { userId: 'u3', username: 'player2', balance: 600 },
+        ],
+        bank: { balance: 10200 },
+      },
+    });
+
+    await userEvent.click(screen.getByText('Spiel starten'));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('600 €')).toHaveLength(3);
+      expect(screen.getByText('Bank: 10200 €')).toBeInTheDocument();
     });
   });
 

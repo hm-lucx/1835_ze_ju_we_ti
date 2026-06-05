@@ -213,6 +213,97 @@ test('Spiel starten als Host funktioniert', async () => {
   assert.ok(startRes.body.game.startedAt);
   assert.ok(startRes.body.game.accounts);
   assert.equal(startRes.body.game.accounts.length, 3);
+  startRes.body.game.accounts.forEach(a => {
+    assert.equal(a.balance, 600);
+  });
+  assert.ok(startRes.body.game.bank);
+  assert.equal(startRes.body.game.bank.balance, 12000 - 3 * 600);
+});
+
+test('Spiel starten verteilt korrektes Startkapital für 4 Spieler', async () => {
+  const t1 = await registerAndGetToken(app, 'host4cap');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+
+  const tokens = [];
+  for (let i = 2; i <= 4; i++) {
+    const pt = await registerAndGetToken(app, `p4cap_${i}`);
+    tokens.push(pt);
+    await joinGame(app, pt, game.id, inviteToken);
+  }
+
+  const startRes = await request(app)
+    .post(`/api/games/${game.id}/start`)
+    .set(asUser(t1));
+
+  assert.equal(startRes.status, 200);
+  assert.equal(startRes.body.game.accounts.length, 4);
+  startRes.body.game.accounts.forEach(a => {
+    assert.equal(a.balance, 475);
+  });
+  assert.equal(startRes.body.game.bank.balance, 12000 - 4 * 475);
+});
+
+test('Spiel starten verteilt korrektes Startkapital für 7 Spieler', async () => {
+  const t1 = await registerAndGetToken(app, 'host7cap');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+
+  const tokens = [];
+  for (let i = 2; i <= 7; i++) {
+    const pt = await registerAndGetToken(app, `p7cap_${i}`);
+    tokens.push(pt);
+    await joinGame(app, pt, game.id, inviteToken);
+  }
+
+  const startRes = await request(app)
+    .post(`/api/games/${game.id}/start`)
+    .set(asUser(t1));
+
+  assert.equal(startRes.status, 200);
+  assert.equal(startRes.body.game.accounts.length, 7);
+  startRes.body.game.accounts.forEach(a => {
+    assert.equal(a.balance, 310);
+  });
+  assert.equal(startRes.body.game.bank.balance, 12000 - 7 * 310);
+});
+
+test('Spiel starten erstellt STARTING_CAPITAL-Transaktionen', async () => {
+  const t1 = await registerAndGetToken(app, 'hostTx');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+
+  const p2 = await registerAndGetToken(app, 'p2_tx');
+  const p3 = await registerAndGetToken(app, 'p3_tx');
+  await joinGame(app, p2, game.id, inviteToken);
+  await joinGame(app, p3, game.id, inviteToken);
+
+  const startRes = await request(app)
+    .post(`/api/games/${game.id}/start`)
+    .set(asUser(t1));
+
+  assert.equal(startRes.status, 200);
+
+  const db = require('../src/lib/prisma');
+  const transactions = await db.transaction.findMany({
+    where: { gameId: game.id, type: 'STARTING_CAPITAL' },
+  });
+  assert.equal(transactions.length, 3);
+  transactions.forEach(tx => {
+    assert.equal(tx.fromId, null);
+    assert.equal(tx.amount, 600);
+  });
+});
+
+test('Spiel starten mit 2 Spielern wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'host2');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+
+  const p2 = await registerAndGetToken(app, 'p2_min');
+  await joinGame(app, p2, game.id, inviteToken);
+
+  const startRes = await request(app)
+    .post(`/api/games/${game.id}/start`)
+    .set(asUser(t1));
+
+  assert.equal(startRes.status, 400);
 });
 
 test('Spiel starten ohne Auth wird abgewiesen', async () => {
