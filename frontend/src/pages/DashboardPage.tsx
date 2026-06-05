@@ -9,6 +9,15 @@ interface Account {
   balance: number;
 }
 
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  createdAt: string;
+  from: string;
+  to: string;
+}
+
 interface Game {
   id: string;
   host: string;
@@ -17,6 +26,22 @@ interface Game {
   startedAt?: string;
   accounts: Account[];
   bank: { balance: number } | null;
+  transactions?: Transaction[];
+}
+
+const transactionTypeLabels: Record<string, string> = {
+  STARTING_CAPITAL: 'Startkapital',
+  PLAYER_TRANSFER: 'Spielertransfer',
+  RECEIVE_FROM_BANK: 'Von Bank erhalten',
+  BUY_FROM_BANK: 'Kauf von Bank',
+  SELL_TO_BANK: 'Verkauf an Bank',
+  BUY_FROM_PLAYER: 'Kauf von Spieler',
+  SELL_TO_PLAYER: 'Verkauf an Spieler',
+  PAYOFF: 'Auszahlung',
+};
+
+function formatTransactionType(type: string) {
+  return transactionTypeLabels[type] ?? type.replace(/_/g, ' ');
 }
 
 const centerStyle = {
@@ -118,8 +143,8 @@ export default function DashboardPage() {
     setTransferError('');
     setTransferSuccess('');
     try {
-      const data = await apiPost(`/api/games/${id}/transfer`, { toUsername: transferRecipient, amount }, token) as { accounts: Account[]; bank: { balance: number } };
-      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank } : null);
+      const data = await apiPost(`/api/games/${id}/transfer`, { toUsername: transferRecipient, amount }, token) as { accounts: Account[]; bank: { balance: number }; transactions?: Transaction[] };
+      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank, transactions: data.transactions ?? prev.transactions } : null);
       setTransferAmount('');
       setTransferSuccess('Überweisung erfolgreich.');
     } catch (err: unknown) {
@@ -140,8 +165,8 @@ export default function DashboardPage() {
     setReceiveError('');
     setReceiveSuccess('');
     try {
-      const data = await apiPost(`/api/games/${id}/receive-from-bank`, { amount }, token) as { accounts: Account[]; bank: { balance: number } };
-      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank } : null);
+      const data = await apiPost(`/api/games/${id}/receive-from-bank`, { amount }, token) as { accounts: Account[]; bank: { balance: number }; transactions?: Transaction[] };
+      setGame(prev => prev ? { ...prev, accounts: data.accounts, bank: data.bank, transactions: data.transactions ?? prev.transactions } : null);
       setReceiveAmount('');
       setReceiveSuccess('Geld von Bank empfangen.');
     } catch (err: unknown) {
@@ -266,6 +291,36 @@ export default function DashboardPage() {
             ))}
           </tbody>
         </table>
+
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Letzte Transaktionen</p>
+          {game.transactions && game.transactions.length > 0 ? (
+            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Zeit</th>
+                  <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Typ</th>
+                  <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Von</th>
+                  <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>An</th>
+                  <th style={{ textAlign: 'right', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Betrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {game.transactions.map(tx => (
+                  <tr key={tx.id}>
+                    <td style={{ padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                    <td style={{ padding: '0.25rem 0.5rem' }}>{formatTransactionType(tx.type)}</td>
+                    <td style={{ padding: '0.25rem 0.5rem' }}>{tx.from}</td>
+                    <td style={{ padding: '0.25rem 0.5rem' }}>{tx.to}</td>
+                    <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{tx.amount} Mark</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)', textAlign: 'center' }}>Es sind noch keine Transaktionen vorhanden.</p>
+          )}
+        </div>
 
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
           <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld senden</p>

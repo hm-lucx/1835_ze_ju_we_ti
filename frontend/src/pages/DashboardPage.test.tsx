@@ -143,6 +143,39 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('zeigt Transaktionen mit Mark-Beträgen im Dashboard', async () => {
+    const now = new Date().toISOString();
+    mockApiGet.mockResolvedValueOnce({
+      game: {
+        id: 'game-1',
+        host: 'host1',
+        status: 'RUNNING',
+        players: [
+          { username: 'host1', joinedAt: now },
+          { username: 'player1', joinedAt: now },
+        ],
+        startedAt: now,
+        accounts: [
+          { userId: 'u1', username: 'host1', balance: 600 },
+          { userId: 'u2', username: 'player1', balance: 400 },
+        ],
+        bank: { balance: 11000 },
+        transactions: [
+          { id: 't1', type: 'PLAYER_TRANSFER', amount: 100, createdAt: now, from: 'host1', to: 'player1' },
+          { id: 't2', type: 'RECEIVE_FROM_BANK', amount: 200, createdAt: now, from: 'Bank', to: 'host1' },
+        ],
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Letzte Transaktionen')).toBeInTheDocument();
+      expect(screen.getByText('100 Mark')).toBeInTheDocument();
+      expect(screen.getByText('200 Mark')).toBeInTheDocument();
+    });
+  });
+
   it('zeigt Fehler bei API-Fehler', async () => {
     mockApiGet.mockRejectedValueOnce({ message: 'Spiel nicht gefunden.' });
 

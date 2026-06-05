@@ -20,6 +20,21 @@ function getStartingCapital(playerCount) {
   return STARTING_CAPITAL_MAP[playerCount] ?? null;
 }
 
+function formatTransactionParticipant(userId, userMap) {
+  return userId ? userMap.get(userId) || userId : 'Bank';
+}
+
+function buildTransactionHistory(transactions, userMap) {
+  return transactions.map(tx => ({
+    id: tx.id,
+    type: tx.type,
+    amount: tx.amount,
+    createdAt: tx.createdAt.toISOString(),
+    from: formatTransactionParticipant(tx.fromId, userMap),
+    to: formatTransactionParticipant(tx.toId, userMap),
+  }));
+}
+
 class GameError extends Error {
   constructor(statusCode, message) {
     super(message);
@@ -103,6 +118,12 @@ async function getGame(gameId, username) {
   const inviteLinkShort = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${game.inviteCode}`;
   const qrCodeSvg = game.qrCodeSvg || await QRCode.toString(inviteLinkShort, { type: 'svg' });
 
+  const usernameByUserId = new Map(game.playerAccounts.map(a => [a.userId, a.user.username]));
+  const rawTransactions = await db.transaction.findMany({
+    where: { gameId: game.id },
+    orderBy: { createdAt: 'desc' },
+  });
+
   return {
     id: game.id,
     host: game.host.username,
@@ -115,6 +136,7 @@ async function getGame(gameId, username) {
     createdAt: game.createdAt.toISOString(),
     accounts: game.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: game.bankAccount ? { balance: game.bankAccount.balance } : null,
+    transactions: buildTransactionHistory(rawTransactions, usernameByUserId),
   };
 }
 
@@ -492,9 +514,16 @@ async function transferMoney({ gameId, username, toUsername, amount }) {
     },
   });
 
+  const usernameByUserId = new Map(updatedGame.playerAccounts.map(a => [a.userId, a.user.username]));
+  const rawTransactions = await db.transaction.findMany({
+    where: { gameId },
+    orderBy: { createdAt: 'desc' },
+  });
+
   return {
     accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+    transactions: buildTransactionHistory(rawTransactions, usernameByUserId),
   };
 }
 
@@ -560,9 +589,16 @@ async function receiveFromBank({ gameId, username, amount }) {
     },
   });
 
+  const usernameByUserId = new Map(updatedGame.playerAccounts.map(a => [a.userId, a.user.username]));
+  const rawTransactions = await db.transaction.findMany({
+    where: { gameId },
+    orderBy: { createdAt: 'desc' },
+  });
+
   return {
     accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
+    transactions: buildTransactionHistory(rawTransactions, usernameByUserId),
   };
 }
 
