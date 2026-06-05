@@ -781,3 +781,175 @@ test('POST /api/games/:id/receive-from-bank Bank darf negativ werden', async () 
   assert.equal(receiveRes.status, 200);
   assert.ok(receiveRes.body.bank.balance < 0);
 });
+
+test('GET /api/games/:id/transactions liefert leere Liste bei neuem Spiel', async () => {
+  const t1 = await registerAndGetToken(app, 'txEmptyHost');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'txEmpty2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'txEmpty3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const res = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.transactions.length, 3); // one STARTING_CAPITAL per player
+  res.body.transactions.forEach(t => {
+    assert.equal(t.type, 'STARTING_CAPITAL');
+    assert.equal(t.amount, 600);
+  });
+});
+
+test('GET /api/games/:id/transactions zeigt Player-Transfer und Receive mit memo', async () => {
+  const t1 = await registerAndGetToken(app, 'txMemoHost');
+  const t2 = await registerAndGetToken(app, 'txMemoOther');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'txMemo3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'txMemoOther', amount: 100, memo: 'Ablöse' });
+
+  await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 50, memo: 'Bankauszahlung' });
+
+  const res = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t1));
+
+  assert.equal(res.status, 200);
+  // newest first: RECEIVE_FROM_BANK (50), PLAYER_TRANSFER (100 out), 3x STARTING_CAPITAL
+  assert.equal(res.body.transactions.length, 5);
+
+  const receiveTx = res.body.transactions[0];
+  assert.equal(receiveTx.type, 'RECEIVE_FROM_BANK');
+  assert.equal(receiveTx.amount, 50);
+  assert.equal(receiveTx.memo, 'Bankauszahlung');
+  assert.equal(receiveTx.fromUsername, null);
+  assert.equal(receiveTx.toUsername, 'txMemoHost');
+
+  const transferTx = res.body.transactions[1];
+  assert.equal(transferTx.type, 'PLAYER_TRANSFER');
+  assert.equal(transferTx.amount, 100);
+  assert.equal(transferTx.memo, 'Ablöse');
+  assert.equal(transferTx.fromUsername, 'txMemoHost');
+  assert.equal(transferTx.toUsername, 'txMemoOther');
+});
+
+test('GET /api/games/:id/transactions berechnet runningBalance korrekt', async () => {
+  const t1 = await registerAndGetToken(app, 'txBalHost');
+  const t2 = await registerAndGetToken(app, 'txBalOther');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'txBal3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'txBalOther', amount: 100 });
+
+  await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 50 });
+
+  const res = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 200);
+  // newest first: RECEIVE_FROM_BANK not involving t2, PLAYER_TRANSFER (t1→t2, +100), 3x STARTING_CAPITAL
+  // For t2: STARTING_CAPITAL: +600, then PLAYER_TRANSFER: +100 → running 700
+  // RECEIVE_FROM_BANK doesn't involve t2 → runningBalance null
+  const receiveTx = res.body.transactions[0];
+  if (receiveTx.type === 'RECEIVE_FROM_BANK') {
+    assert.strictEqual(receiveTx.runningBalance, null);
+  }
+
+  const transferTx = res.body.transactions.find(t => t.type === 'PLAYER_TRANSFER');
+  assert.ok(transferTx);
+  // runningBalance: STARTING_CAPITAL (600) came first, then transfer to t2 (+100) = 700
+  // But this is for t2 as receiver: 600 + 100 = 700
+  assert.strictEqual(transferTx.runningBalance, 700);
+
+  // For host (txBalHost), they sent 100: 600 - 100 = 500
+  const resHost = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t1));
+
+  const hostTransferTx = resHost.body.transactions.find(t => t.type === 'PLAYER_TRANSFER');
+  assert.ok(hostTransferTx);
+  assert.strictEqual(hostTransferTx.runningBalance, 500);
+});
+
+test('GET /api/games/:id/transactions ohne Auth wird abgewiesen', async () => {
+  const res = await request(app)
+    .get('/api/games/some-id/transactions');
+  assert.equal(res.status, 401);
+});
+
+test('GET /api/games/:id/transactions als Nicht-Teilnehmer wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'txAuthHost');
+  const t2 = await registerAndGetToken(app, 'txAuthOutsider');
+  const { game } = await createAndGetInviteToken(app, t1);
+
+  const res = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t2));
+
+  assert.equal(res.status, 403);
+});
+
+test('POST /api/games/:id/transfer speichert memo', async () => {
+  const t1 = await registerAndGetToken(app, 'memoSender');
+  const t2 = await registerAndGetToken(app, 'memoRecv');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'memo3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'memoRecv', amount: 50, memo: 'Testzweck' });
+
+  assert.equal(transferRes.status, 200);
+
+  const txRes = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t1));
+
+  const tx = txRes.body.transactions.find(t => t.type === 'PLAYER_TRANSFER');
+  assert.ok(tx);
+  assert.equal(tx.memo, 'Testzweck');
+});
+
+test('POST /api/games/:id/receive-from-bank speichert memo', async () => {
+  const t1 = await registerAndGetToken(app, 'memoRecvBank');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'memoRecvBank2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'memoRecvBank3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const receiveRes = await request(app)
+    .post(`/api/games/${game.id}/receive-from-bank`)
+    .set(asUser(t1))
+    .send({ amount: 30, memo: 'Bankgrund' });
+
+  assert.equal(receiveRes.status, 200);
+
+  const txRes = await request(app)
+    .get(`/api/games/${game.id}/transactions`)
+    .set(asUser(t1));
+
+  const tx = txRes.body.transactions.find(t => t.type === 'RECEIVE_FROM_BANK');
+  assert.ok(tx);
+  assert.equal(tx.memo, 'Bankgrund');
+});

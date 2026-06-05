@@ -134,6 +134,7 @@ model Transaction {
   stockId   String?
   amount    Int
   type      TransactionType
+  memo      String?
   createdAt DateTime        @default(now())
 
   game  Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)

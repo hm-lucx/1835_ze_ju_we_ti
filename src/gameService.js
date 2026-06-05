@@ -395,7 +395,7 @@ async function leaveGame({ gameId, username }) {
   };
 }
 
-async function transferMoney({ gameId, username, toUsername, amount }) {
+async function transferMoney({ gameId, username, toUsername, amount, memo }) {
   const db = getDb();
 
   const game = await db.game.findUnique({
@@ -449,6 +449,7 @@ async function transferMoney({ gameId, username, toUsername, amount }) {
           toId: null,
           amount,
           type: 'PLAYER_TRANSFER',
+          memo: memo || null,
         },
       }),
     ]);
@@ -478,6 +479,7 @@ async function transferMoney({ gameId, username, toUsername, amount }) {
           toId: receiver.userId,
           amount,
           type: 'PLAYER_TRANSFER',
+          memo: memo || null,
         },
       }),
     ]);
@@ -498,7 +500,7 @@ async function transferMoney({ gameId, username, toUsername, amount }) {
   };
 }
 
-async function receiveFromBank({ gameId, username, amount }) {
+async function receiveFromBank({ gameId, username, amount, memo }) {
   const db = getDb();
 
   const game = await db.game.findUnique({
@@ -547,6 +549,7 @@ async function receiveFromBank({ gameId, username, amount }) {
         toId: player.userId,
         amount,
         type: 'RECEIVE_FROM_BANK',
+        memo: memo || null,
       },
     }),
   ]);
@@ -564,6 +567,53 @@ async function receiveFromBank({ gameId, username, amount }) {
     accounts: updatedGame.playerAccounts.map(a => ({ userId: a.userId, username: a.user.username, balance: a.balance })),
     bank: updatedGame.bankAccount ? { balance: updatedGame.bankAccount.balance } : null,
   };
+}
+
+async function getTransactions(gameId, username) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { players: { include: { user: true } } },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  const player = game.players.find(p => p.user.username === username);
+  if (!player) {
+    throw new GameError(403, 'Du bist nicht in diesem Spiel.');
+  }
+
+  const playerUserId = player.user.id;
+
+  const transactions = await db.transaction.findMany({
+    where: { gameId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const userMap = {};
+  game.players.forEach(p => { userMap[p.user.id] = p.user.username; });
+
+  let runningBalance = 0;
+  const result = transactions.map(t => {
+    if (t.fromId === playerUserId) runningBalance -= t.amount;
+    if (t.toId === playerUserId) runningBalance += t.amount;
+    const involvesMe = t.fromId === playerUserId || t.toId === playerUserId;
+    return {
+      id: t.id,
+      amount: t.amount,
+      type: t.type,
+      memo: t.memo,
+      fromUsername: t.fromId ? (userMap[t.fromId] || null) : null,
+      toUsername: t.toId ? (userMap[t.toId] || null) : null,
+      createdAt: t.createdAt.toISOString(),
+      runningBalance: involvesMe ? runningBalance : null,
+    };
+  });
+
+  return result.reverse();
 }
 
 async function resetGames() {
@@ -586,6 +636,7 @@ module.exports = {
   startGame,
   transferMoney,
   receiveFromBank,
+  getTransactions,
   resetGames,
   MAX_PLAYERS,
   MIN_PLAYERS,
