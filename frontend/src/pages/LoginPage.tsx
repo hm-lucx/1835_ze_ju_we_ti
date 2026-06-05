@@ -38,7 +38,7 @@ export default function LoginPage() {
   const [leaveLoading, setLeaveLoading] = useState(false);
 
   if (isAuthenticated && !activeGame) {
-    return <Navigate to="/lobby" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleLogin = useCallback(async () => {
@@ -55,7 +55,7 @@ export default function LoginPage() {
       if (games.length > 0 && games[0]) {
         setActiveGame(games[0]);
       } else {
-        navigate('/lobby', { replace: true });
+        navigate('/dashboard', { replace: true });
       }
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
@@ -74,9 +74,9 @@ export default function LoginPage() {
     try {
       await apiPost(`/api/games/${activeGame.id}/leave`, undefined, token);
       setActiveGame(null);
-      navigate('/lobby', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch {
-      navigate('/lobby', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }
 

@@ -29,7 +29,7 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   if (isAuthenticated) {
-    return <Navigate to="/lobby" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   function validate(): boolean {
@@ -50,7 +50,7 @@ export default function RegisterPage() {
     if (!validate()) return;
     try {
       await register(username, password, passwordConfirm, birthDate, email);
-      navigate('/lobby', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
       if (apiErr.message) {
