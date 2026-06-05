@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost } from '../lib/api';
+import PageShell from '../components/PageShell';
 
 interface Account {
   userId: string;
@@ -42,67 +43,6 @@ const TYPE_LABELS: Record<string, string> = {
   SELL_TO_PLAYER: 'Aktienverkauf (Spieler)',
   PAYOFF: 'Auszahlung',
 };
-
-const centerStyle = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '100vh',
-  padding: '1rem',
-} as const;
-
-const cardStyle = {
-  backgroundColor: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  boxShadow: '0 4px 20px rgba(201, 153, 58, 0.15)',
-  padding: '2.5rem 2rem',
-  width: '100%',
-  maxWidth: 560,
-} as const;
-
-const titleStyle = {
-  fontFamily: 'var(--font-display)',
-  fontSize: '1.75rem',
-  fontWeight: 700,
-  color: 'var(--color-accent)',
-  textAlign: 'center',
-  marginBottom: '1.5rem',
-} as const;
-
-const balanceCardStyle = {
-  backgroundColor: 'var(--color-bg)',
-  border: '2px solid var(--color-accent)',
-  padding: '1.5rem',
-  textAlign: 'center',
-  marginBottom: '1rem',
-} as const;
-
-const balanceAmountStyle = {
-  fontSize: '2.5rem',
-  fontWeight: 700,
-  color: 'var(--color-accent)',
-  marginTop: '0.25rem',
-} as const;
-
-const mutedStyle = {
-  color: 'var(--color-muted)',
-  fontSize: '0.9rem',
-  textAlign: 'center',
-} as const;
-
-const buttonStyle = {
-  display: 'block',
-  width: '100%',
-  padding: '0.75rem',
-  fontFamily: 'var(--font-body)',
-  fontSize: '1.05rem',
-  fontWeight: 600,
-  color: '#1a1410',
-  backgroundColor: 'var(--color-accent)',
-  border: 'none',
-  cursor: 'pointer',
-  marginTop: '0.5rem',
-} as const;
 
 const POLL_INTERVAL = 5000;
 
@@ -261,127 +201,103 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={centerStyle}>
-        <div style={cardStyle}>
-          <p style={mutedStyle}>Lade Spielstand…</p>
-        </div>
-      </div>
+      <PageShell wide withHeader>
+        <p className="page-muted">Lade Spielstand…</p>
+      </PageShell>
     );
   }
 
   if (error) {
     return (
-      <div style={centerStyle}>
-        <div style={cardStyle}>
-          <p style={{ color: 'var(--color-error)', textAlign: 'center', marginBottom: '1rem' }}>{error}</p>
-          <button
-            onClick={() => navigate('/lobby')}
-            style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-          >
-            Zurück zur Lobby
-          </button>
-        </div>
-      </div>
+      <PageShell wide withHeader>
+        <p className="page-error" style={{ marginBottom: '1rem' }}>{error}</p>
+        <button type="button" className="btn btn--ghost" onClick={() => navigate('/lobby')}>
+          Zurück zur Lobby
+        </button>
+      </PageShell>
     );
   }
 
   if (!game) {
     return (
-      <div style={centerStyle}>
-        <div style={cardStyle}>
-          <p style={mutedStyle}>Spiel nicht gefunden.</p>
-          <button
-            onClick={() => navigate('/lobby')}
-            style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-          >
-            Zurück zur Lobby
-          </button>
-        </div>
-      </div>
+      <PageShell wide withHeader>
+        <p className="page-muted">Spiel nicht gefunden.</p>
+        <button type="button" className="btn btn--ghost" onClick={() => navigate('/lobby')}>
+          Zurück zur Lobby
+        </button>
+      </PageShell>
     );
   }
 
   return (
-    <div style={centerStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>Spiel-Dashboard</h1>
+    <PageShell wide withHeader>
+      <h1 className="page-title">Spiel-Dashboard</h1>
 
-        <p style={mutedStyle}>
-          Angemeldet als <strong>{user?.username}</strong>
+      {game.startedAt && (
+        <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+          Gestartet: {new Date(game.startedAt).toLocaleString()}
         </p>
+      )}
 
-        {game.startedAt && (
-          <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem' }}>
-            Gestartet: {new Date(game.startedAt).toLocaleString()}
+      {game.status === 'PAUSED' && (
+        <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-error)', fontWeight: 600 }}>
+          ⚠️ Spiel pausiert
+        </p>
+      )}
+
+      {game.status === 'FINISHED' && (
+        <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-accent)', fontWeight: 700 }}>
+          🏆 Spiel beendet
+        </p>
+      )}
+
+      {myAccount && (
+        <div className="balance-card">
+          <p className="balance-card__label">Dein Kontostand</p>
+          <p className="balance-card__amount">{myAccount.balance} Mark</p>
+        </div>
+      )}
+
+      {game.bank && (
+        <div className={`balance-card balance-card--bank${game.bank.balance < 0 ? ' balance-card--negative' : ''}`}>
+          <p className="balance-card__label" style={{ color: 'var(--color-muted)', fontWeight: 400 }}>Bank</p>
+          <p className={`balance-card__amount balance-card__amount--bank${game.bank.balance < 0 ? ' balance-card__amount--negative' : ''}`}>
+            {game.bank.balance} Mark
           </p>
-        )}
+        </div>
+      )}
 
-        {game.status === 'PAUSED' && (
-          <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-error)', fontWeight: 600 }}>
-            ⚠️ Spiel pausiert
-          </p>
-        )}
+      {game.status === 'RUNNING' && (
+        <button
+          type="button"
+          className="btn btn--danger"
+          onClick={handlePause}
+          disabled={pauseLoading}
+          style={{ marginBottom: '0.5rem' }}
+        >
+          {pauseLoading ? 'Wird pausiert…' : 'Spiel pausieren'}
+        </button>
+      )}
 
-        {game.status === 'FINISHED' && (
-          <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-accent)', fontWeight: 700 }}>
-            🏆 Spiel beendet
-          </p>
-        )}
+      {(game.status === 'RUNNING' || game.status === 'PAUSED') && (
+        <button
+          type="button"
+          className="btn btn--dark"
+          onClick={handleFinish}
+          disabled={finishLoading}
+          style={{ marginBottom: '1rem' }}
+        >
+          {finishLoading ? 'Wird beendet…' : 'Spiel beenden'}
+        </button>
+      )}
 
-        {myAccount && (
-          <div style={balanceCardStyle}>
-            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Dein Kontostand</p>
-            <p style={balanceAmountStyle}>{myAccount.balance} Mark</p>
-          </div>
-        )}
-
-        {game.bank && (
-          <div style={{ ...balanceCardStyle, borderColor: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-border)', marginBottom: '1.5rem' }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-muted)' }}>Bank</p>
-            <p style={{ ...balanceAmountStyle, fontSize: '1.8rem', color: game.bank.balance < 0 ? 'var(--color-error)' : 'var(--color-text)' }}>{game.bank.balance} Mark</p>
-          </div>
-        )}
-
-        {game.status === 'RUNNING' && (
-          <button
-            onClick={handlePause}
-            disabled={pauseLoading}
-            style={{
-              ...buttonStyle,
-              backgroundColor: '#b33a2e',
-              color: '#fff',
-              marginBottom: '0.5rem',
-              opacity: pauseLoading ? 0.5 : 1,
-              cursor: pauseLoading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {pauseLoading ? 'Wird pausiert…' : 'Spiel pausieren'}
-          </button>
-        )}
-
-        {(game.status === 'RUNNING' || game.status === 'PAUSED') && (
-          <button
-            onClick={handleFinish}
-            disabled={finishLoading}
-            style={{
-              ...buttonStyle,
-              backgroundColor: '#1a1a1a',
-              color: '#fff',
-              marginBottom: '1rem',
-              opacity: finishLoading ? 0.5 : 1,
-              cursor: finishLoading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {finishLoading ? 'Wird beendet…' : 'Spiel beenden'}
-          </button>
-        )}
-
-        <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
+      <div className="table-scroll">
+        <table className="data-table data-table--leaderboard">
           <thead>
             <tr>
-              <th style={{ textAlign: 'center', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)', width: '2rem' }}>Rang</th>
-              <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Spieler</th>
-              <th style={{ textAlign: 'right', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Kontostand</th>
+              <th className="data-table__rank">Rang</th>
+              <th style={{ textAlign: 'left' }}>Spieler</th>
+              <th className="data-table__right">Kontostand</th>
             </tr>
           </thead>
           <tbody>
@@ -391,222 +307,163 @@ export default function DashboardPage() {
               const bgColor = isWinner ? 'rgba(201, 153, 58, 0.15)' : isMe ? 'rgba(201, 153, 58, 0.08)' : undefined;
               return (
                 <tr key={a.userId} style={{ backgroundColor: bgColor }}>
-                  <td style={{ textAlign: 'center', padding: '0.25rem 0.3rem', color: 'var(--color-muted)' }}>{i + 1}.</td>
-                  <td style={{ padding: '0.25rem 0.5rem', fontWeight: isMe ? 700 : 400 }}>
+                  <td className="data-table__rank">{i + 1}.</td>
+                  <td style={{ fontWeight: isMe ? 700 : 400 }}>
                     {isWinner ? '👑 ' : ''}{a.username}{isMe ? ' (Du)' : ''}
                   </td>
-                  <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} Mark</td>
+                  <td className="data-table__right">{a.balance} Mark</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-
-        {game.status === 'RUNNING' ? (
-          <>
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
-              <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld senden</p>
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  type="number"
-                  min={1}
-                  max={myAccount?.balance || 0}
-                  value={transferAmount}
-                  onChange={e => { setTransferAmount(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-                  placeholder="Betrag"
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text)',
-                  }}
-                />
-                <select
-                  value={transferRecipient}
-                  onChange={e => { setTransferRecipient(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text)',
-                  }}
-                >
-                  <option value="">Bank</option>
-                  {otherPlayers.map(a => (
-                    <option key={a.userId} value={a.username}>{a.username}</option>
-                  ))}
-                </select>
-              </div>
-
-              <input
-                type="text"
-                value={transferMemo}
-                onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
-                placeholder="Verwendungszweck"
-                maxLength={100}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginBottom: '0.5rem',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.9rem',
-                  backgroundColor: 'var(--color-bg)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text)',
-                  boxSizing: 'border-box',
-                }}
-              />
-
-              <button
-                onClick={handleTransfer}
-                disabled={transferLoading || !transferAmount || !myAccount}
-                style={{
-                  ...buttonStyle,
-                  opacity: transferLoading || !transferAmount || !myAccount ? 0.5 : 1,
-                  cursor: transferLoading || !transferAmount || !myAccount ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {transferLoading ? 'Wird gesendet…' : 'Senden'}
-              </button>
-
-              {transferError && (
-                <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferError}</p>
-              )}
-              {transferSuccess && (
-                <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>
-              )}
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
-              <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Geld von Bank empfangen</p>
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  type="number"
-                  min={1}
-                  value={receiveAmount}
-                  onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
-                  placeholder="Betrag"
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text)',
-                  }}
-                />
-              </div>
-
-              <input
-                type="text"
-                value={receiveMemo}
-                onChange={e => { setReceiveMemo(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
-                placeholder="Verwendungszweck"
-                maxLength={100}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginBottom: '0.5rem',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.9rem',
-                  backgroundColor: 'var(--color-bg)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text)',
-                  boxSizing: 'border-box',
-                }}
-              />
-
-              <button
-                onClick={handleReceiveFromBank}
-                disabled={receiveLoading || !receiveAmount}
-                style={{
-                  ...buttonStyle,
-                  opacity: receiveLoading || !receiveAmount ? 0.5 : 1,
-                  cursor: receiveLoading || !receiveAmount ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
-              </button>
-
-              {receiveError && (
-                <p style={{ color: 'var(--color-error)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveError}</p>
-              )}
-              {receiveSuccess && (
-                <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>
-              )}
-            </div>
-          </>
-        ) : game.status === 'PAUSED' ? (
-          <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
-            Transaktionen sind im pausierten Zustand nicht möglich.
-          </p>
-        ) : (
-          <p style={{ ...mutedStyle, marginBottom: '1rem' }}>
-            Das Spiel ist beendet.
-          </p>
-        )}
-
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginBottom: '1rem' }}>
-          <p style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.95rem', textAlign: 'center' }}>Transaktionshistorie</p>
-
-          {transactionsLoading ? (
-            <p style={mutedStyle}>Lade Transaktionen…</p>
-          ) : transactions.length === 0 ? (
-            <p style={mutedStyle}>Noch keine Transaktionen.</p>
-          ) : (
-            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-              <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Typ</th>
-                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Von</th>
-                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Nach</th>
-                    <th style={{ textAlign: 'right', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Betrag</th>
-                    <th style={{ textAlign: 'right', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Saldo</th>
-                    <th style={{ textAlign: 'left', padding: '0.25rem 0.3rem', borderBottom: '1px solid var(--color-border)' }}>Zweck</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map(t => {
-                    const amountStr = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
-                      ? `+${t.amount} Mark`
-                      : `-${t.amount} Mark`;
-                    const amountColor = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
-                      ? 'var(--color-accent)'
-                      : 'var(--color-error)';
-                    return (
-                      <tr key={t.id}>
-                        <td style={{ padding: '0.25rem 0.3rem' }}>{TYPE_LABELS[t.type] || t.type}</td>
-                        <td style={{ padding: '0.25rem 0.3rem' }}>{t.fromUsername || 'Bank'}</td>
-                        <td style={{ padding: '0.25rem 0.3rem' }}>{t.toUsername || 'Bank'}</td>
-                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem', color: amountColor }}>{amountStr}</td>
-                        <td style={{ textAlign: 'right', padding: '0.25rem 0.3rem' }}>{t.runningBalance !== null ? `${t.runningBalance} Mark` : '—'}</td>
-                        <td style={{ padding: '0.25rem 0.3rem', color: 'var(--color-muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.memo || '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={() => navigate('/lobby')}
-          style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-        >
-          Zurück zur Lobby
-        </button>
       </div>
-    </div>
+
+      {game.status === 'RUNNING' ? (
+        <>
+          <div className="form-section">
+            <p className="form-section__title">Geld senden</p>
+
+            <div className="form-row">
+              <input
+                type="number"
+                min={1}
+                max={myAccount?.balance || 0}
+                value={transferAmount}
+                onChange={e => { setTransferAmount(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                placeholder="Betrag"
+                className="form-input"
+              />
+              <select
+                value={transferRecipient}
+                onChange={e => { setTransferRecipient(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+                className="form-select"
+              >
+                <option value="">Bank</option>
+                {otherPlayers.map(a => (
+                  <option key={a.userId} value={a.username}>{a.username}</option>
+                ))}
+              </select>
+            </div>
+
+            <input
+              type="text"
+              value={transferMemo}
+              onChange={e => { setTransferMemo(e.target.value); setTransferError(''); setTransferSuccess(''); }}
+              placeholder="Verwendungszweck"
+              maxLength={100}
+              className="form-input"
+              style={{ marginBottom: '0.5rem' }}
+            />
+
+            <button
+              type="button"
+              className="btn"
+              onClick={handleTransfer}
+              disabled={transferLoading || !transferAmount || !myAccount}
+            >
+              {transferLoading ? 'Wird gesendet…' : 'Senden'}
+            </button>
+
+            {transferError && <p className="page-error" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{transferError}</p>}
+            {transferSuccess && <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{transferSuccess}</p>}
+          </div>
+
+          <div className="form-section">
+            <p className="form-section__title">Geld von Bank empfangen</p>
+
+            <div className="form-row">
+              <input
+                type="number"
+                min={1}
+                value={receiveAmount}
+                onChange={e => { setReceiveAmount(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+                placeholder="Betrag"
+                className="form-input"
+              />
+            </div>
+
+            <input
+              type="text"
+              value={receiveMemo}
+              onChange={e => { setReceiveMemo(e.target.value); setReceiveError(''); setReceiveSuccess(''); }}
+              placeholder="Verwendungszweck"
+              maxLength={100}
+              className="form-input"
+              style={{ marginBottom: '0.5rem' }}
+            />
+
+            <button
+              type="button"
+              className="btn"
+              onClick={handleReceiveFromBank}
+              disabled={receiveLoading || !receiveAmount}
+            >
+              {receiveLoading ? 'Wird empfangen…' : 'Empfangen'}
+            </button>
+
+            {receiveError && <p className="page-error" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{receiveError}</p>}
+            {receiveSuccess && <p style={{ color: 'var(--color-accent)', marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'center' }}>{receiveSuccess}</p>}
+          </div>
+        </>
+      ) : game.status === 'PAUSED' ? (
+        <p className="page-muted" style={{ marginBottom: '1rem' }}>
+          Transaktionen sind im pausierten Zustand nicht möglich.
+        </p>
+      ) : (
+        <p className="page-muted" style={{ marginBottom: '1rem' }}>
+          Das Spiel ist beendet.
+        </p>
+      )}
+
+      <div className="form-section">
+        <p className="form-section__title">Transaktionshistorie</p>
+
+        {transactionsLoading ? (
+          <p className="page-muted">Lade Transaktionen…</p>
+        ) : transactions.length === 0 ? (
+          <p className="page-muted">Noch keine Transaktionen.</p>
+        ) : (
+          <div className="table-scroll table-scroll--transactions">
+            <table className="data-table data-table--transactions">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Typ</th>
+                  <th style={{ textAlign: 'left' }}>Von</th>
+                  <th style={{ textAlign: 'left' }}>Nach</th>
+                  <th className="data-table__right">Betrag</th>
+                  <th className="data-table__right">Saldo</th>
+                  <th style={{ textAlign: 'left' }}>Zweck</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map(t => {
+                  const amountStr = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
+                    ? `+${t.amount} Mark`
+                    : `-${t.amount} Mark`;
+                  const amountColor = t.type === 'STARTING_CAPITAL' || t.toUsername === user?.username
+                    ? 'var(--color-accent)'
+                    : 'var(--color-error)';
+                  return (
+                    <tr key={t.id}>
+                      <td>{TYPE_LABELS[t.type] || t.type}</td>
+                      <td>{t.fromUsername || 'Bank'}</td>
+                      <td>{t.toUsername || 'Bank'}</td>
+                      <td className="data-table__right" style={{ color: amountColor }}>{amountStr}</td>
+                      <td className="data-table__right">{t.runningBalance !== null ? `${t.runningBalance} Mark` : '—'}</td>
+                      <td className="data-table__memo">{t.memo || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <button type="button" className="btn btn--ghost" onClick={() => navigate('/lobby')}>
+        Zurück zur Lobby
+      </button>
+    </PageShell>
   );
 }

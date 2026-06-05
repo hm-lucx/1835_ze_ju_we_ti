@@ -12,18 +12,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputBase: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  padding: '0.65rem 0.75rem',
-  fontFamily: 'var(--font-body)',
-  fontSize: '1rem',
-  color: 'var(--color-text)',
   backgroundColor: '#1e1812',
-  borderWidth: '1px',
-  borderStyle: 'solid',
-  borderColor: 'var(--color-border)',
-  borderRadius: 0,
-  outline: 'none',
   transition: 'border-color 0.2s',
 };
 
@@ -49,6 +38,7 @@ export default function AuthInput({ label, errorMessage, id, style, ...inputProp
       <input
         id={inputId}
         {...inputProps}
+        className="form-input"
         style={{
           ...inputBase,
           ...(focused ? { borderColor: 'var(--color-accent)' } : {}),
