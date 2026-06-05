@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AuthCard from '../components/auth/AuthCard';
 import AuthInput from '../components/auth/AuthInput';
@@ -19,7 +19,6 @@ function computeAge(birthDate: string): number {
 
 export default function RegisterPage() {
   const { register, isAuthenticated, loading } = useAuth();
-  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -50,7 +49,7 @@ export default function RegisterPage() {
     if (!validate()) return;
     try {
       await register(username, password, passwordConfirm, birthDate, email);
-      navigate('/lobby', { replace: true });
+      // isAuthenticated wird true → <Navigate> im Render übernimmt die Weiterleitung
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
       if (apiErr.message) {
@@ -63,7 +62,7 @@ export default function RegisterPage() {
         setError('Registrierung fehlgeschlagen.');
       }
     }
-  }, [username, email, birthDate, password, passwordConfirm, register, navigate]);
+  }, [username, email, birthDate, password, passwordConfirm, register]);
 
   return (
     <AuthCard title="Registrierung" subtitle="Tritt dem Spiel bei">

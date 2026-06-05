@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { apiPost } from '../lib/api';
 
 const TOKEN_KEY = 'auth_token';
@@ -114,18 +114,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateAuth({ user: null, token: null });
   }, [updateAuth]);
 
+  const value = useMemo(() => ({
+    user: auth.user,
+    token: auth.token,
+    isAuthenticated: !!auth.token,
+    loading,
+    login,
+    register,
+    forgotPassword,
+    resetPassword,
+    logout,
+  }), [auth, loading, login, register, forgotPassword, resetPassword, logout]);
+
   return (
-    <AuthContext.Provider value={{
-      user: auth.user,
-      token: auth.token,
-      isAuthenticated: !!auth.token,
-      loading,
-      login,
-      register,
-      forgotPassword,
-      resetPassword,
-      logout,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

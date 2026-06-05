@@ -169,10 +169,11 @@ export default function LobbyPage() {
     }
   }, [token]);
 
+  const gameIdParam = searchParams.get('game');
+
   useEffect(() => {
-    const gameId = searchParams.get('game');
-    if (gameId) {
-      loadGame(gameId);
+    if (gameIdParam) {
+      loadGame(gameIdParam);
       return;
     }
     if (!token) return;
@@ -182,7 +183,7 @@ export default function LobbyPage() {
         navigate(`/lobby?game=${games[0].id}`, { replace: true });
       }
     }).catch(() => {});
-  }, [searchParams, loadGame, token, navigate]);
+  }, [gameIdParam, loadGame, token, navigate]);
 
   useEffect(() => {
     if (!game || game.status !== 'LOBBY') return;
