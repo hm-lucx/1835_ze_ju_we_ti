@@ -107,6 +107,32 @@ test('Spiel einsehen ohne Auth wird abgewiesen', async () => {
   assert.equal(response.status, 401);
 });
 
+test('getGame liefert Invite-Felder nur an Host in LOBBY', async () => {
+  const t1 = await registerAndGetToken(app, 'invHost1');
+  const t2 = await registerAndGetToken(app, 'invPlayer1');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+
+  const hostRes = await request(app)
+    .get(`/api/games/${game.id}`)
+    .set(asUser(t1));
+
+  assert.equal(hostRes.status, 200);
+  assert.ok(hostRes.body.game.inviteCode);
+  assert.ok(hostRes.body.game.inviteLink);
+  assert.ok(hostRes.body.game.inviteLinkShort);
+
+  const playerRes = await request(app)
+    .get(`/api/games/${game.id}`)
+    .set(asUser(t2));
+
+  assert.equal(playerRes.status, 200);
+  assert.equal(playerRes.body.game.inviteCode, undefined);
+  assert.equal(playerRes.body.game.inviteLink, undefined);
+  assert.equal(playerRes.body.game.inviteLinkShort, undefined);
+  assert.equal(playerRes.body.game.qrCodeSvg, undefined);
+});
+
 test('Spiel einsehen als Nicht-Teilnehmer wird abgewiesen', async () => {
   const token1 = await registerAndGetToken(app, 'host4');
   const token2 = await registerAndGetToken(app, 'viewer1');

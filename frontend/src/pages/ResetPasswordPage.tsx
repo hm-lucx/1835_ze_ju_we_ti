@@ -15,6 +15,26 @@ export default function ResetPasswordPage() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [error, setError] = useState('');
 
+  const handleSubmit = useCallback(async () => {
+    if (!tokenParam) return;
+    setError('');
+    if (newPassword.length < 8) {
+      setError('Das Passwort muss mindestens 8 Zeichen lang sein.');
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setError('Passwörter stimmen nicht überein.');
+      return;
+    }
+    try {
+      await resetPassword(tokenParam, newPassword, newPasswordConfirm);
+      navigate('/login?reset=success', { replace: true });
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setError(apiErr.message || 'Fehler beim Zurücksetzen.');
+    }
+  }, [newPassword, newPasswordConfirm, tokenParam, resetPassword, navigate]);
+
   if (!tokenParam) {
     return (
       <AuthCard title="Passwort zurücksetzen">
@@ -27,25 +47,6 @@ export default function ResetPasswordPage() {
       </AuthCard>
     );
   }
-
-  const handleSubmit = useCallback(async () => {
-    setError('');
-    if (newPassword.length < 8) {
-      setError('Das Passwort muss mindestens 8 Zeichen lang sein.');
-      return;
-    }
-    if (newPassword !== newPasswordConfirm) {
-      setError('Passwörter stimmen nicht überein.');
-      return;
-    }
-    try {
-      await resetPassword(tokenParam!, newPassword, newPasswordConfirm);
-      navigate('/login?reset=success', { replace: true });
-    } catch (err: unknown) {
-      const apiErr = err as { message?: string };
-      setError(apiErr.message || 'Fehler beim Zurücksetzen.');
-    }
-  }, [newPassword, newPasswordConfirm, tokenParam, resetPassword, navigate]);
 
   return (
     <AuthCard title="Passwort zurücksetzen" subtitle="Wähle ein neues Passwort">
