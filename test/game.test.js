@@ -593,3 +593,120 @@ test('POST /api/rounds/join unter 16 Jahren wird abgewiesen', async () => {
   assert.equal(joinRes.status, 403);
   assert.equal(joinRes.body.message, 'Mindestalter nicht erfüllt.');
 });
+
+test('POST /api/games/:id/transfer Spieler zu Spieler', async () => {
+  const t1 = await registerAndGetToken(app, 'sender');
+  const t2 = await registerAndGetToken(app, 'receiver');
+  const t3 = await registerAndGetToken(app, 'bystander');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, t3, game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'receiver', amount: 100 });
+
+  assert.equal(transferRes.status, 200);
+  assert.equal(transferRes.body.message, 'Überweisung erfolgreich.');
+  const senderAccount = transferRes.body.accounts.find(a => a.username === 'sender');
+  const receiverAccount = transferRes.body.accounts.find(a => a.username === 'receiver');
+  const bystanderAccount = transferRes.body.accounts.find(a => a.username === 'bystander');
+  assert.equal(senderAccount.balance, 500);  // 600 - 100
+  assert.equal(receiverAccount.balance, 700); // 600 + 100
+  assert.equal(bystanderAccount.balance, 600); // unchanged
+
+  const prisma = require('../src/lib/prisma');
+  const tx = await prisma.transaction.findFirst({
+    where: { gameId: game.id, type: 'PLAYER_TRANSFER' },
+    orderBy: { createdAt: 'desc' },
+  });
+  assert.ok(tx);
+  assert.equal(tx.amount, 100);
+  assert.equal(tx.toId, receiverAccount.userId);
+});
+
+test('POST /api/games/:id/transfer Spieler zu Bank', async () => {
+  const t1 = await registerAndGetToken(app, 'sbSender');
+  const t2 = await registerAndGetToken(app, 'sbOther');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'sbThird'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: '', amount: 200 });
+
+  assert.equal(transferRes.status, 200);
+  const senderAccount = transferRes.body.accounts.find(a => a.username === 'sbSender');
+  assert.equal(senderAccount.balance, 400); // 600 - 200
+  assert.equal(transferRes.body.bank.balance, 10400); // 10200 + 200
+});
+
+test('POST /api/games/:id/transfer unzureichendes Guthaben', async () => {
+  const t1 = await registerAndGetToken(app, 'poor');
+  const t2 = await registerAndGetToken(app, 'rich');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'poorThird'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'rich', amount: 9999 });
+
+  assert.equal(transferRes.status, 400);
+  assert.equal(transferRes.body.message, 'Nicht genügend Guthaben.');
+});
+
+test('POST /api/games/:id/transfer ungültiger Betrag', async () => {
+  const t1 = await registerAndGetToken(app, 'badAmount');
+  const t2 = await registerAndGetToken(app, 'badAmountRecv');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, t2, game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'badAmount3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const zeroRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'badAmountRecv', amount: 0 });
+  assert.equal(zeroRes.status, 400);
+  assert.equal(zeroRes.body.message, 'Betrag muss eine positive ganze Zahl sein.');
+});
+
+test('POST /api/games/:id/transfer an sich selbst wird abgewiesen', async () => {
+  const t1 = await registerAndGetToken(app, 'selfie');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'selfie2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'selfie3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'selfie', amount: 100 });
+
+  assert.equal(transferRes.status, 400);
+  assert.equal(transferRes.body.message, 'Du kannst kein Geld an dich selbst senden.');
+});
+
+test('POST /api/games/:id/transfer nicht-existenter Empfänger', async () => {
+  const t1 = await registerAndGetToken(app, 'ghostSender');
+  const { game, inviteToken } = await createAndGetInviteToken(app, t1);
+  await joinGame(app, await registerAndGetToken(app, 'ghost2'), game.id, inviteToken);
+  await joinGame(app, await registerAndGetToken(app, 'ghost3'), game.id, inviteToken);
+  await request(app).post(`/api/games/${game.id}/start`).set(asUser(t1));
+
+  const transferRes = await request(app)
+    .post(`/api/games/${game.id}/transfer`)
+    .set(asUser(t1))
+    .send({ toUsername: 'nobody', amount: 100 });
+
+  assert.equal(transferRes.status, 404);
+  assert.equal(transferRes.body.message, 'Empfänger nicht gefunden.');
+});

@@ -122,6 +122,7 @@ enum TransactionType {
   SELL_TO_PLAYER
   STARTING_CAPITAL
   PAYOFF
+  PLAYER_TRANSFER
 }
 
 model Transaction {
