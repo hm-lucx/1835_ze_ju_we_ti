@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { apiPost, apiGet } from '../lib/api';
+import { apiPost, apiGet, apiDelete } from '../lib/api';
 import PageShell from '../components/PageShell';
 
 interface Player {
@@ -73,6 +73,7 @@ export default function LobbyPage() {
   const [joinCode, setJoinCode] = useState('');
   const [myGames, setMyGames] = useState<GameSummary[]>([]);
   const [resumeLoading, setResumeLoading] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   async function handleCreateGame() {
     if (!token) return;
@@ -137,10 +138,30 @@ export default function LobbyPage() {
     try {
       await apiPost(`/api/games/${game.id}/leave`, undefined, token);
       setGame(null);
+      await loadMyGames();
     } catch (err: unknown) {
       setError((err as { message?: string }).message || 'Austritt fehlgeschlagen.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteGame(gameId: string) {
+    if (!token) return;
+    if (!window.confirm('Runde wirklich löschen? Alle Spieler werden entfernt.')) return;
+    setDeleteLoading(gameId);
+    setError('');
+    try {
+      await apiDelete(`/api/games/${gameId}`, token);
+      if (game?.id === gameId) {
+        setGame(null);
+        navigate('/lobby', { replace: true });
+      }
+      await loadMyGames();
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Löschen fehlgeschlagen.');
+    } finally {
+      setDeleteLoading(null);
     }
   }
 
@@ -294,6 +315,16 @@ export default function LobbyPage() {
                     >
                       Öffnen
                     </button>
+                    {g.host === user?.username && g.status === 'LOBBY' && (
+                      <button
+                        type="button"
+                        className="btn btn--inline btn--danger"
+                        onClick={() => handleDeleteGame(g.id)}
+                        disabled={deleteLoading === g.id}
+                      >
+                        {deleteLoading === g.id ? '…' : 'Löschen'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -433,6 +464,17 @@ export default function LobbyPage() {
                   <p className="page-muted" style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
                     Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
                   </p>
+                )}
+                {game.status === 'LOBBY' && (
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    onClick={() => handleDeleteGame(game.id)}
+                    disabled={deleteLoading === game.id}
+                    style={{ marginTop: '0.5rem' }}
+                  >
+                    {deleteLoading === game.id ? 'Wird gelöscht…' : 'Runde löschen'}
+                  </button>
                 )}
               </>
             )}

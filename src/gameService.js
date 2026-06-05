@@ -412,6 +412,31 @@ async function leaveGame({ gameId, username }) {
   };
 }
 
+async function deleteGame({ gameId, username }) {
+  const db = getDb();
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    include: { host: true },
+  });
+
+  if (!game) {
+    throw new GameError(404, 'Spielrunde nicht gefunden.');
+  }
+
+  if (game.status !== 'LOBBY') {
+    throw new GameError(400, 'Nur Runden in der Lobby können gelöscht werden.');
+  }
+
+  if (game.host.username !== username) {
+    throw new GameError(403, 'Nur der Host kann die Runde löschen.');
+  }
+
+  await db.game.delete({ where: { id: gameId } });
+
+  return { deleted: true };
+}
+
 async function transferMoney({ gameId, username, toUsername, amount, memo }) {
   const db = getDb();
 
@@ -797,6 +822,7 @@ module.exports = {
   joinGame,
   joinRoundByCode,
   leaveGame,
+  deleteGame,
   startGame,
   transferMoney,
   receiveFromBank,

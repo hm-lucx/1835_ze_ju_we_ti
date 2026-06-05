@@ -10,6 +10,7 @@ const mockUser = { username: 'host1', birthDate: '2000-01-01' };
 const mockNavigate = vi.fn();
 const mockApiPost = vi.fn();
 const mockApiGet = vi.fn();
+const mockApiDelete = vi.fn();
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -29,6 +30,7 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('../lib/api', () => ({
   apiPost: (...args: any[]) => mockApiPost(...args),
   apiGet: (...args: any[]) => mockApiGet(...args),
+  apiDelete: (...args: any[]) => mockApiDelete(...args),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -374,5 +376,35 @@ describe('LobbyPage', () => {
     await waitFor(() => {
       expect(mockApiPost).toHaveBeenCalledWith('/api/games/game-paused/confirm-resume', {}, 'test-token');
     });
+  });
+
+  it('löscht eigene Lobby-Runde aus der Liste', async () => {
+    const originalConfirm = window.confirm;
+    window.confirm = vi.fn(() => true);
+    mockApiGet.mockResolvedValue({
+      games: [{
+        id: 'game-lobby',
+        host: 'host1',
+        status: 'LOBBY',
+        createdAt: new Date().toISOString(),
+        playerCount: 1,
+        resumeConfirmedCount: 0,
+      }],
+    });
+    mockApiDelete.mockResolvedValueOnce({ deleted: true });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Löschen')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByText('Löschen'));
+
+    await waitFor(() => {
+      expect(mockApiDelete).toHaveBeenCalledWith('/api/games/game-lobby', 'test-token');
+    });
+
+    window.confirm = originalConfirm;
   });
 });

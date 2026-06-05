@@ -2,7 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const { AuthError, register, login, forgotPassword, resetPassword, requireAuth } = require('./authService');
-const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, startGame, transferMoney, receiveFromBank, pauseGame, confirmResume, finishGame, getTransactions } = require('./gameService');
+const { GameError, createGame, getGame, getMyGames, joinGame, joinRoundByCode, leaveGame, deleteGame, startGame, transferMoney, receiveFromBank, pauseGame, confirmResume, finishGame, getTransactions } = require('./gameService');
 
 function createApp(options = {}) {
   const app = express();
@@ -192,6 +192,21 @@ function createApp(options = {}) {
       res.status(200).json({
         message: 'Du hast die Runde verlassen.',
         ...result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/games/:id', requireAuth, gameRateLimiter, async (req, res, next) => {
+    try {
+      const result = await deleteGame({
+        gameId: req.params.id,
+        username: req.user.username,
+      });
+      res.status(200).json({
+        message: 'Runde gelöscht.',
+        ...result,
       });
     } catch (error) {
       next(error);
