@@ -133,7 +133,7 @@ export default function LobbyPage() {
     try {
       const data = await apiPost(`/api/games/${game.id}/start`, undefined, token);
       if (data.game) {
-        setGame(prev => prev ? { ...prev, status: data.game.status, startedAt: data.game.startedAt, accounts: data.game.accounts, bank: data.game.bank } : null);
+        navigate(`/game/${game.id}`);
       } else {
         setError(data.message || 'Fehler beim Starten.');
       }
@@ -200,6 +200,12 @@ export default function LobbyPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [game, loadGame]);
+
+  useEffect(() => {
+    if (game && game.status === 'RUNNING') {
+      navigate(`/game/${game.id}`, { replace: true });
+    }
+  }, [game, navigate]);
 
   const isHost = game && user && game.host === user.username;
   const canStart = isHost && game && game.players.length >= MIN_PLAYERS;
@@ -300,7 +306,7 @@ export default function LobbyPage() {
           <>
             <div style={{ marginTop: '1.5rem', padding: '1rem', border: '1px solid var(--color-border)' }}>
               <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: 'var(--color-accent)' }}>
-                {game.status === 'RUNNING' ? 'Spiel läuft' : 'Runde erstellt'}
+                Runde erstellt
               </p>
               <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
                 Status: <strong>{game.status}</strong>
@@ -314,99 +320,62 @@ export default function LobbyPage() {
                 ))}
               </ul>
 
-              {game.status === 'LOBBY' && (
-                <>
-                  {!isHost && (
-                    <button
-                      onClick={handleLeaveGame}
-                      disabled={loading}
-                      style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)', marginBottom: '1rem' }}
-                    >
-                      {loading ? 'Wird verlassen…' : 'Runde verlassen'}
-                    </button>
-                  )}
-
-                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                    <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
-                      Einladungscode
-                    </p>
-                    <p style={{ margin: '0 0 0.75rem', fontFamily: 'monospace', fontSize: '1.3rem', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.15em' }}>
-                      {game.inviteCode}
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <input
-                      readOnly
-                      value={game.inviteLinkShort}
-                      style={{ flex: 1, padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                    />
-                    <button onClick={handleCopyLink} style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                      {copied ? 'Kopiert' : 'Kopieren'}
-                    </button>
-                  </div>
-
-                  {game.qrCodeSvg && (
-                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                      <img
-                        src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
-                        alt="QR-Code zum Beitreten"
-                        style={{ width: 160, height: 160 }}
-                      />
-                    </div>
-                  )}
-
-                  {isHost && (
-                    <>
-                      <button
-                        onClick={handleStartGame}
-                        disabled={!canStart || loading}
-                        style={{
-                          ...buttonStyle,
-                          opacity: loading ? 0.5 : canStart ? 1 : 0.4,
-                          cursor: canStart && !loading ? 'pointer' : 'not-allowed'
-                        }}
-                      >
-                        {loading ? 'Wird gestartet…' : 'Spiel starten'}
-                      </button>
-                      {!canStart && !loading && (
-                        <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                          Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
-                        </p>
-                      )}
-                    </>
-                  )}
-                </>
+              {!isHost && (
+                <button
+                  onClick={handleLeaveGame}
+                  disabled={loading}
+                  style={{ ...buttonStyle, backgroundColor: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)', marginBottom: '1rem' }}
+                >
+                  {loading ? 'Wird verlassen…' : 'Runde verlassen'}
+                </button>
               )}
 
-              {game.status === 'RUNNING' && (
+              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+                  Einladungscode
+                </p>
+                <p style={{ margin: '0 0 0.75rem', fontFamily: 'monospace', fontSize: '1.3rem', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.15em' }}>
+                  {game.inviteCode}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  readOnly
+                  value={game.inviteLinkShort}
+                  style={{ flex: 1, padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                />
+                <button onClick={handleCopyLink} style={{ ...buttonStyle, marginTop: 0, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                  {copied ? 'Kopiert' : 'Kopieren'}
+                </button>
+              </div>
+
+              {game.qrCodeSvg && (
+                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                  <img
+                    src={`data:image/svg+xml;utf8,${encodeURIComponent(game.qrCodeSvg)}`}
+                    alt="QR-Code zum Beitreten"
+                    style={{ width: 160, height: 160 }}
+                  />
+                </div>
+              )}
+
+              {isHost && (
                 <>
-                  <p style={{ ...mutedStyle, marginTop: '1rem' }}>
-                    Spiel läuft seit {game.startedAt ? new Date(game.startedAt).toLocaleString() : '?'}
-                  </p>
-                  {game.accounts && game.accounts.length > 0 && (
-                    <div style={{ marginTop: '1rem' }}>
-                      <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr>
-                            <th style={{ textAlign: 'left', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Spieler</th>
-                            <th style={{ textAlign: 'right', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--color-border)' }}>Kontostand</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {game.accounts.map(a => (
-                            <tr key={a.userId}>
-                              <td style={{ padding: '0.25rem 0.5rem' }}>{a.username}{a.username === user?.username ? ' (Du)' : ''}</td>
-                              <td style={{ textAlign: 'right', padding: '0.25rem 0.5rem' }}>{a.balance} €</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  {game.bank && (
-                    <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                      Bank: {game.bank.balance} €
+                  <button
+                    onClick={handleStartGame}
+                    disabled={!canStart || loading}
+                    style={{
+                      ...buttonStyle,
+                      opacity: loading ? 0.5 : canStart ? 1 : 0.4,
+                      cursor: canStart && !loading ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    {loading ? 'Wird gestartet…' : 'Spiel starten'}
+                  </button>
+                  {!canStart && !loading && (
+                    <p style={{ ...mutedStyle, marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                      Warte auf mindestens {MIN_PLAYERS} Spieler (aktuell: {game.players.length})
                     </p>
                   )}
                 </>
